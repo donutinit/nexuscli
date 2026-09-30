@@ -178,7 +178,7 @@ def ventana(comando: str, salida: str) -> tuple[str, int, int]:
 <div class="win"><div class="bar">
 <span class="dot" style="background:#b23a2f"></span><span class="dot" style="background:#d9873f"></span>
 <span class="dot" style="background:#5c6b52"></span><div class="titulo">{html.escape(titulo_ventana(comando))}</div>
-</div><pre>{cuerpo}</pre></div>"""
+</div><pre style="min-width:{round(cols * 9.0)}px">{cuerpo}</pre></div>"""
     ancho = 44 * 2 + 30 * 2 + round(cols * 9.0) + 4
     alto = 36 + 60 + 38 + 22 + 26 + round((len(lineas) + 1) * 24) + 2
     return doc, ancho, alto
@@ -306,6 +306,9 @@ def main() -> None:
         captura("siase-historial", "nexuscli siase historial", s.correr("siase", "historial"))
         captura("siase-horario", "nexuscli siase horario", s.correr("siase", "horario"))
         captura("siase-kardex", "nexuscli siase kardex", s.correr("siase", "kardex"))
+        s.siase.encuestas = ["Encuesta de servicios escolares"]
+        captura("siase-estado", "nexuscli siase estado", s.correr("siase", "estado"))
+        captura("siase-recibo", "nexuscli siase recibo", s.correr("siase", "recibo"))
 
         # Para el banner, las columnas que caben en un cuadro de 6x6.
         corto = lambda salida, n: "\n".join(

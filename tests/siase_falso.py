@@ -320,6 +320,97 @@ def pagina_horario() -> str:
 </body></html>"""
 
 
+# ---------------------------------------------------------------------- consultas escolares
+
+
+def pagina_situacion() -> str:
+    return f"""<html><body><table><tr><td>DEPARTAMENTO ESCOLAR Y DE ARCHIVO DE LA UANL</td></tr>
+<tr><td>SEMESTRE : Agosto-Diciembre 2026</td></tr><tr><td>ESTUDIANTE: {MATRICULA} LOPEZ GARZA ANA</td></tr></table>
+<div>Identificación Virtual Temporal</div><div>LOPEZ</div><div>GARZA</div><div>ANA</div>
+<div>División:-Inscripciones y Credencialización</div>
+<p>SITUACIÓN DEL ESTUDIANTE: DEFINITIVO</p><p>TIPO DE INSCRIPCIÓN: REINGRESO</p><p>FOTO ACEPTADA: SI</p>
+<p>Nota: El tramite es unicamente al estudiante</p><script>alert('Petición realizada');</script></body></html>"""
+
+
+def pagina_fecha_inscripcion() -> str:
+    return """<html><body><h3>Consulta de Horario de Inscripción</h3><p>Agosto-Diciembre 2026</p>
+<p>Dia de Inscripcion : 21 Jul 2026</p><p>Hora de Inscripcion : 09:00</p></body></html>"""
+
+
+def pagina_adeudos(conceptos: list[tuple[str, str, str, str]]) -> str:
+    total = sum(float(c[3].replace("$", "").replace(",", "")) for c in conceptos)
+    filas = "".join(f"<tr><td>{a}</td><td>{b}</td><td>{c}</td><td>{d}</td></tr>" for a, b, c, d in conceptos)
+    return f"""<html><body><table><tr><td>Fecha :</td><td>08/Octubre/2026</td></tr>
+<tr><td>Matrícula :</td><td>{MATRICULA}</td></tr></table>
+<table><tr><td>Cuenta</td><td>Cantidad</td><td>Concepto</td><td>Total</td></tr>{filas}
+<tr><td>Adeudo</td><td>Total :</td><td>$</td><td>{total:g}</td></tr></table></body></html>"""
+
+
+def pagina_beca() -> str:
+    return f"""<html><body><p>Alumno : {MATRICULA} LOPEZ GARZA ANA</p><a href="#">Cerrar</a>
+<p>No cuenta con una solicitud de beca</p></body></html>"""
+
+
+def pagina_encuestas(encuestas: list[str]) -> str:
+    ops = "".join(f'<option value="{i + 1}">{_e(e)}</option>' for i, e in enumerate(encuestas))
+    return f"""<html><body><form action="control.p"><p>Seleccionar la Encuesta:</p>
+<select name="HTMLEncuesta"><option value="0">Seleccione</option>{ops}</select></form></body></html>"""
+
+
+def pagina_tramites(tramites: list[tuple[str, str, str, str, str]]) -> str:
+    filas = "".join("<tr>" + "".join(f"<td>{_e(x)}</td>" for x in t) + "<td></td></tr>" for t in tramites)
+    return f"""<html><body><script>function agregar() {{ alert('Debe Seleccionar el Tipo de Documento'); }}</script>
+<p>Agregar Trámite</p><select id="HTMLTramite" name="HTMLTramite"><option value="0">Seleccione</option>
+<option value="39">CERTIFICADO ELECTRÓNICO PARCIAL</option><option value="02">CERTIFICADO PARCIAL</option></select>
+<table><tr><td>No. Solicitud</td><td>Documento</td><td>Fecha de Solictud</td><td>Importe</td><td>Estatus</td>
+<td>Programación de Requisitos ante el DEyA</td></tr>{filas}</table></body></html>"""
+
+
+def pagina_documentos(estado: str, pendientes: list[str]) -> str:
+    extra = "".join(f"<li>{_e(p)}</li>" for p in pendientes)
+    return f"<html><body><h2>Entrega de documentos</h2><p>{_e(estado)}</p><ul>{extra}</ul></body></html>"
+
+
+def pagina_recibo() -> str:
+    conceptos = [("0201", "BONO DEPORTIVO", "$60.00"), ("0211", "INSCRIPCION REING LIC.", "$540.00"),
+                 ("0222", "SERVICIOS PARA LA ENSEÑANZA", "$1,100.00"), ("0252", "CUOTA ESCOLAR", "$580.00")]
+    filas = "".join(f"<tr><td>{a}</td><td>{b}</td><td>{c}</td></tr>" for a, b, c in conceptos)
+    return f"""<html><body><h3>Recibo de Servicios Académicos y Escolares</h3>
+<table><tr><td>PERIODO DE INSCRIPCIÓN:</td></tr><tr><td>Agosto-Diciembre 2026</td></tr>
+<tr><td>INSCRIPCIÓN</td></tr><tr><td>REINGRESO - REINGRESO OFICIAL NACIONAL</td></tr></table>
+<table><tr><td>CUENTA</td><td>CONCEPTO</td><td>IMPORTE</td></tr>
+<tr><td></td><td>CONCEPTOS DEL PERIODO</td><td>$2,280.00</td></tr>{filas}
+<tr><td>** Recibo Pagado ** TOTAL</td><td>$ 2,280.00</td></tr></table>
+<p>Realiza tu pago preferentemente antes del 29 de Mayo de 2026</p><p>Trámite de becas 26 de Mayo de 2026</p>
+<div>Transacción exitosa</div><div>Monto pagado: $ 2,280.00</div><div>Fecha: 02/07/2026</div>
+<div>Transacción: Aprobado</div></body></html>"""
+
+
+def pagina_recibos_internos() -> str:
+    return """<html><body><h3>Recibo Interno de Servicios Academicos y Escolares</h3><p>Seleccione la Boleta</p>
+<table><tr><td>Boletas pagadas</td></tr><tr><td><a href="javascript:ejecuta('0x0000000000abc999');">RECIBO INTERNO
+DE SERVICIOS ACADÉMICOS Y ESCOLARES REINGRESO SUPERIOR AGOSTO-DICIEMBRE 2026&nbsp;-&nbsp;(Agosto-Diciembre 2026)</a>
+</td></tr></table><form action="ecoenma01.htm"><input type="hidden" name="HTMLBoleta" value=""></form></body></html>"""
+
+
+def pagina_datos() -> str:
+    def fila(*pares):
+        return "<tr>" + "".join(f"<td>{k}</td><td>{v}</td>" for k, v in pares) + "</tr>"
+    return f"""<html><body><table><tr><td>Datos Personales del Alumno</td></tr>
+<tr><td>IMSS</td></tr>{fila(("Número de SeguroSocial (NSS)", "00000000000"))}
+<tr><td>Datos Generales</td></tr>{fila(("Nombre", "ANA"))}{fila(("Apellido Paterno", "LOPEZ"))}
+{fila(("CURP", "XXXX000000XXXXXX00"), ("RFC", ""))}{fila(("Correo Universitario", "ana.demo@uanl.edu.mx"))}
+<tr><td>Domicilio Local</td></tr>{fila(("Colonia", "COLONIA DEMO"), ("C.P. :", "64000"))}{fila(("Ciudad", "MONTERREY"))}
+<tr><td>Trabajo del Alumno</td></tr>{fila(("Empresa/Institucion", ""), ("Dirección", ""))}
+</table><table><tr><td>IMSS</td><td></td></tr><tr><td>Datos Generales</td><td></td></tr></table></body></html>"""
+
+
+def pagina_parciales() -> str:
+    return """<html><body><table><tr><td>Clave</td><td>Materia</td><td>Parcial 1</td><td>Parcial 2</td></tr>
+<tr><td>401</td><td>Semiótica de la imagen</td><td>88</td><td></td></tr>
+<tr><td>402</td><td>Iluminación y fotometría</td><td>91</td><td></td></tr></table></body></html>"""
+
+
 # ---------------------------------------------------------------------- servidor
 
 
@@ -331,6 +422,10 @@ class SiaseFalso:
     vencer_una_vez: bool = False
     peticiones: list[httpx.Request] = field(default_factory=list)
     registradas: set[int] = field(default_factory=set)
+    adeudos: list[tuple[str, str, str, str]] = field(default_factory=list)
+    encuestas: list[str] = field(default_factory=list)
+    tramites: list[tuple[str, str, str, str, str]] = field(default_factory=list)
+    parciales: bool = True
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         request.read()
@@ -380,6 +475,23 @@ class SiaseFalso:
                 return self._r(pagina_calificaciones(form["HTMLPeriodo"]))
             if form.get("HTMLTrund") == "echalm02":
                 return self._r(pagina_horario())
+        escolares = {
+            "ecSitEst01.htm": pagina_situacion,
+            "ecohoinsint01.htm": pagina_fecha_inscripcion,
+            "ecavpag04.htm": lambda: pagina_adeudos(self.adeudos),
+            "bccosobe01.htm": pagina_beca,
+            "eenc01.htm": lambda: pagina_encuestas(self.encuestas),
+            "eccontram03.htm": lambda: pagina_tramites(self.tramites),
+            "ecCargaDocto01.htm": lambda: pagina_documentos("Expediente Completo", []),
+            "ecBolRec-v02.htm": pagina_recibo,
+            "ecavpag01.htm": pagina_recibos_internos,
+            "edatal01.htm": pagina_datos,
+            "econeva01.htm": lambda: pagina_periodos("econeva02"),
+        }
+        if pagina in escolares:
+            return self._r(escolares[pagina]())
+        if pagina == "control.p" and form.get("HTMLTrund") == "econeva02":
+            return self._r(pagina_parciales() if self.parciales else pagina_error("No cuenta con Evaluaciones o Parciales en este periodo."))
         return httpx.Response(404, text="no existe")
 
     @staticmethod

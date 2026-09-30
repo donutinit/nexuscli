@@ -864,7 +864,8 @@ def clasificar_novedades(visto: Visto, por_curso: list[tuple[Any, list]], todo: 
 
 COLOR_NOVEDAD = {"cierre": "rojo", "materia nueva": "hueso", "comentario": "vino", "calificación": "oliva",
                  "calificación final": "oliva", "aviso": "naranja", "foro": "hueso", "mensaje": "hueso",
-                 "afi": "oliva", "afi nueva": "naranja", "siase": "hueso"}
+                 "afi": "oliva", "afi nueva": "naranja", "siase": "hueso", "parcial": "oliva", "adeudo": "rojo",
+                 "trámite": "naranja", "encuesta": "naranja"}
 
 
 def cmd_novedades(nx: Nexus, args, out: Salida) -> None:
@@ -910,7 +911,8 @@ def cmd_novedades(nx: Nexus, args, out: Salida) -> None:
             print("Nada nuevo.")
             return
         orden = ["cierre", "materia nueva", "siase", "comentario", "calificación", "calificación final", "aviso", "foro",
-                 "mensaje", "afi", "afi nueva", "tarea", "entrega", "tema de foro"]
+                 "mensaje", "parcial", "adeudo", "trámite", "encuesta", "afi", "afi nueva", "tarea", "entrega",
+                 "tema de foro"]
         hallazgos.sort(key=lambda h: (orden.index(h["tipo"]) if h["tipo"] in orden else 99, h["curso"]))
         for h in hallazgos:
             etiqueta = pintar("[" + h["tipo"] + (" (cambió)" if h["estado"] == "cambio" else "") + "]",
@@ -1201,6 +1203,21 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add_s("horario", cs.cmd_horario, "tu horario de clases de un periodo")
     sp.add_argument("-p", "--periodo", help="número de `periodos` o parte del nombre (default: el actual)")
     sp.add_argument("-l", "--lista", action="store_true", help="por día en lugar de cuadrícula")
+    add_s("estado", cs.cmd_estado, "tablero escolar: situación, inscripción, pagos, beca, documentos, trámites, AFIs")
+    add_s("situacion", cs.cmd_situacion, "situación del estudiante (definitivo, reingreso, foto)")
+    add_s("inscripcion", cs.cmd_inscripcion, "día y hora de tu inscripción")
+    add_s("adeudos", cs.cmd_adeudos, "otros adeudos con la universidad")
+    sp = add_s("recibo", cs.cmd_recibo, "recibo de servicios académicos: conceptos, total y si está pagado")
+    sp.add_argument("--intersemestral", action="store_true", help="el recibo intersemestral")
+    add_s("recibos", cs.cmd_recibos, "recibos internos de servicios académicos y escolares")
+    add_s("beca", cs.cmd_beca, "resultado de tu solicitud de beca")
+    add_s("encuestas", cs.cmd_encuestas, "encuestas pendientes")
+    add_s("tramites", cs.cmd_tramites, "trámites con el Departamento Escolar y de Archivo")
+    add_s("documentos", cs.cmd_documentos, "documentos pendientes de tu expediente")
+    sp = add_s("evaluaciones", cs.cmd_evaluaciones, "evaluaciones parciales de un periodo")
+    sp.add_argument("-p", "--periodo")
+    sp = add_s("datos", cs.cmd_datos, "tus datos personales en SIASE (incluye NSS, CURP y domicilio)")
+    sp.add_argument("-s", "--seccion", help="solo una sección: imss, generales, nacimiento, domicilio...")
 
     sp = add("api", cmd_api, "llamada directa a WebApi/<Dominio>/<Método> (lectura; --escribir para lo demás)", si=True)
     sp.add_argument("endpoint", help="p. ej. Curso/ConsultarDetalleCurso")

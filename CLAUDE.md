@@ -2,7 +2,8 @@
 
 CLI de Python para Nexus y SIASE de la UANL. Existe para que un agente (Claude, Codex, OpenCode)
 los use por la persona: leer tareas, calificaciones y comentarios, entregar, publicar, clonar el
-material de las materias, ver AFIs con cupo, kardex y horario, y pre-registrarse en AFIs. `AGENTS.md` es el archivo canónico y `CLAUDE.md` tiene el mismo contenido. Si
+material de las materias, ver AFIs con cupo, kardex, horario, pagos y trámites escolares, y
+pre-registrarse en AFIs. `AGENTS.md` es el archivo canónico y `CLAUDE.md` tiene el mismo contenido. Si
 existe `CLAUDE.local.md` (fuera de git), léelo también: trae notas de la máquina.
 
 ## reglas
@@ -20,6 +21,11 @@ existe `CLAUDE.local.md` (fuera de git), léelo también: trae notas de la máqu
 - No uses `--pace off` contra el servidor real; es para tests.
 - Para leer resultados usa `--json`.
 - Credenciales, sesión y descargas no van a git ni se copian a otro lado.
+- `nexuscli siase datos` trae NSS, CURP, domicilio y demás. Úsalo solo si la persona necesita un
+  dato de ahí, pide la sección concreta con `-s` y no lo copies a archivos, commits, issues ni
+  mensajes. Lo mismo con recibos, adeudos y calificaciones: se leen para contestarle a la persona,
+  no se guardan en otro lado.
+- Las encuestas y los trámites de SIASE solo se leen; contestarlos o pedirlos se hace en la web.
 
 ## uso
 
@@ -36,11 +42,14 @@ nexuscli borrar TAREA [ENTREGA_ID...|--todas]
 nexuscli clonar -c CURSO -o CARPETA [--personal]
 nexuscli codigo CURSO CODIGO            # código corto de materia
 nexuscli api Dominio/ConsultarAlgo '{"CursoId": 1}'
-nexuscli novedades --siase              # suma calificaciones finales, asistencia a AFIs y AFIs nuevas
+nexuscli novedades --siase              # suma calificaciones, parciales, AFIs, adeudos, encuestas y trámites
 
 nexuscli siase afis [-d] [-m MES] [-a AREA] [-b TEXTO] [-s] [--nuevas]
 nexuscli siase afi ID | inscribir ID | liberar ID
 nexuscli siase historial | kardex [-p] | periodos | calificaciones [-p PERIODO] | horario [--lista] | perfil
+nexuscli siase estado                   # tablero: situación, inscripción, recibo, adeudos, beca, documentos...
+nexuscli siase situacion | inscripcion | recibo [--intersemestral] | recibos | adeudos | beca
+nexuscli siase documentos | tramites | encuestas | evaluaciones [-p PERIODO] | datos [-s SECCION]
 ```
 
 Las tareas se nombran por su número (`2.4`, `PIA`), su id o un pedazo del nombre; las materias,
@@ -58,7 +67,8 @@ con `-c` y un pedazo del nombre, su id o su código.
 - `src/nexuscli/siase.py`: sesión de SIASE (`HTMLtrim`), parsers puros `parse_*` y pre-registro de
   AFIs; `dom.py` es el árbol HTML tolerante que usan; `cli_siase.py`, los comandos.
   `docs/siase.md` es la referencia. En SIASE pre-registrar y liberar son la misma petición: no
-  quites los candados que revisan el historial antes y después.
+  quites los candados que revisan el historial antes y después. `siase_escolar.py` tiene las
+  consultas escolares (situación, pagos, trámites, datos), con sus parsers y la clase `Escolar`.
 - Tests: `uv run pytest`, sin red. `tests/siase_falso.py` es un SIASE de mentira con la
   estructura de las páginas reales; úsalo si cambias un parser. `tests/test_payloads.py` fija los cuerpos de escritura; si
   cambias uno, que sea porque el frontend de Nexus cambió.

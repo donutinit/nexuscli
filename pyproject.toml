@@ -1,6 +1,6 @@
 [project]
 name = "nexuscli"
-version = "0.3.0"
+version = "0.4.0"
 description = "Nexus y SIASE de la UANL desde la terminal: tareas, entregas en equipo, comentarios, material de cada materia, AFIs con cupo, kardex y horario."
 readme = "README.md"
 license = "MIT"

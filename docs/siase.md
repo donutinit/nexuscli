@@ -1,6 +1,6 @@
 # SIASE
 
-Cómo lee `nexuscli` las AFIs, el kardex, las calificaciones y el horario de [SIASE](https://deimos.dgi.uanl.mx/cgi-bin/wspd_cgi.sh/login.htm). SIASE es una aplicación Progress WebSpeed de hace varios años: no tiene API, así que `nexuscli` lee su HTML. No es documentación oficial y cualquier cambio de SIASE lo puede romper.
+Cómo lee `nexuscli` las AFIs, el kardex, las calificaciones, el horario y las consultas escolares de [SIASE](https://deimos.dgi.uanl.mx/cgi-bin/wspd_cgi.sh/login.htm). SIASE es una aplicación Progress WebSpeed de hace varios años: no tiene API, así que `nexuscli` lee su HTML. No es documentación oficial y cualquier cambio de SIASE lo puede romper.
 
 Las consultas de esta página están probadas contra SIASE. El pre-registro y la liberación de AFIs copian lo que hace la página y `tests/test_siase.py` los fija contra un SIASE falso, pero todavía no se han probado contra el servidor real.
 
@@ -45,6 +45,7 @@ Todas son `GET https://deimos.dgi.uanl.mx/cgi-bin/wspd_cgi.sh/<página>` con los
 | `econkdx01.htm` | el kardex |
 | `econcfs01.htm` | los periodos para consultar calificaciones |
 | `echalm01.htm` | los periodos para consultar el horario |
+| `econeva01.htm` | los periodos para consultar las evaluaciones parciales |
 
 ### AFIs
 
@@ -86,6 +87,30 @@ HTMLPeriodo=0x00000000003b9471&HTMLTrund=econcfs02&HTMLResill=<el de la página>
 - **Horario:** trae tres tablas. La primera es una cuadrícula con una fila por hora (`7:01 am a<BR> 8:00 am`) y una columna por día, de lunes a sábado. Cada celda es `<b>F-01</b> / CO<br>SEIM<br>201<B> / </B>A105`: fase, tipo, abreviatura, grupo y salón. La segunda es la lista de materias, con clave, nombre, abreviatura, grupo, tipo de oferta, frecuencias, créditos y oportunidad. La tercera tiene el total de horas presenciales y asíncronas.
 
 Las abreviaturas del horario (SEIM, GUCI...) son los nombres cortos que SIASE da a cada materia. `nexuscli` las guarda en `~/.local/state/nexuscli/siase-materias.json` para proponerlas como códigos de materia en Nexus.
+
+## consultas escolares
+
+Son las páginas del menú que no tienen que ver con materias. Van con los mismos parámetros de sesión. Son páginas chicas sin `class` ni `id` útiles, así que los parsers de `siase_escolar.py` ubican cada dato por el texto que lo rodea.
+
+| comando | página | qué lee |
+| --- | --- | --- |
+| `situacion` | `ecSitEst01.htm` | la identificación virtual: semestre, `SITUACIÓN DEL ESTUDIANTE`, `TIPO DE INSCRIPCIÓN`, `FOTO ACEPTADA` y la división |
+| `inscripcion` | `ecohoinsint01.htm` | `Dia de Inscripcion :` y `Hora de Inscripcion :`, con el periodo arriba |
+| `adeudos` | `ecavpag04.htm` | una tabla de cuenta, cantidad, concepto y total; la última fila es `Adeudo Total :` |
+| `beca` | `bccosobe01.htm` | un mensaje, por ejemplo "No cuenta con una solicitud de beca" |
+| `encuestas` | `eenc01.htm` | el `<select name="HTMLEncuesta">`: cada opción distinta de "Seleccione" es una encuesta pendiente |
+| `tramites` | `eccontram03.htm` | la tabla de solicitudes (número, documento, fecha, importe, estatus) y un `<select>` con los documentos que se pueden pedir |
+| `documentos` | `DEYA+ecCargaDocto01.htm` | el estado del expediente y los documentos que falten |
+| `recibo` | `ecBolRec-v02.htm` (`v03` el intersemestral) | periodo, tipo de inscripción, conceptos con su cuenta e importe, total, fecha límite y el bloque "Transacción exitosa" con monto, fecha y estado del pago |
+| `recibos` | `ecavpag01.htm` | los recibos internos; cada liga es `javascript:ejecuta('<id>')` y el encabezado de su grupo ("Boletas pagadas") dice su estado |
+| `datos` | `edatal01.htm` | una tabla de pares etiqueta y valor con filas de título (IMSS, Datos Generales, Domicilio Local...) |
+| `evaluaciones` | `econeva01.htm` y `control.p` | igual que las calificaciones, con `HTMLTrund=econeva02` |
+
+`documentos` es la única que no vive en `wspd_cgi.sh`: la página es `https://deimos.dgi.uanl.mx/cgi-bin/deya.sh/ecCargaDocto01.htm`, con los mismos parámetros.
+
+Sin evaluaciones parciales capturadas, `control.p` responde con un `alert` ("No cuenta con Evaluaciones o Parciales en este periodo."). `nexuscli` lo toma como una lista vacía y no como error.
+
+`datos` trae el NSS, la CURP y el domicilio. `nexuscli` no lo guarda y omite los campos vacíos.
 
 ## pre-registro de AFIs
 

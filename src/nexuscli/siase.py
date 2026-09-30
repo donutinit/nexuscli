@@ -695,7 +695,8 @@ class Siase:
     def consultar(self, pagina: str, parser: Callable[[str], Any], extra: dict | None = None) -> Any:
         """GET a una página con las claves de la sesión; si la sesión venció, entra y repite."""
         for intento in (1, 2):
-            html_ = self._pedir("GET", BASE + pagina, params={**self.params(), **(extra or {})})
+            url = pagina if pagina.startswith("http") else BASE + pagina
+            html_ = self._pedir("GET", url, params={**self.params(), **(extra or {})})
             try:
                 revisar_sesion(html_)
                 return parser(html_)

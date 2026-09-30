@@ -406,8 +406,34 @@ def novedades_siase(nx, visto: Visto) -> list[dict]:
                      {"tipo": "afi", "curso": "SIASE", "tarea": e.evento,
                       "texto": ("asistencia registrada" + (f", oficial #{e.num_oficial}" if e.oficial else ""))
                       if e.asistencia else "pre-registro"}))
-    ahora = texto.ahora()
+    from .siase_escolar import Escolar
+    esc = Escolar(s)
     silenciosas: set[str] = set()
+    antes = len(regs)
+    try:
+        ade = esc.adeudos()
+        regs.append(("siase:adeudos", huella(ade.total, [c.__dict__ for c in ade.conceptos]),
+                     {"tipo": "adeudo", "curso": "SIASE", "tarea": "otros adeudos",
+                      "texto": f"total {_pesos(ade.total)}" + "".join(f"; {c.concepto}" for c in ade.conceptos)}))
+        for enc in esc.encuestas():
+            regs.append((f"siase:encuesta:{enc}", "x", {"tipo": "encuesta", "curso": "SIASE", "tarea": enc,
+                                                         "texto": "encuesta pendiente en SIASE"}))
+        for t in esc.tramites().tramites:
+            regs.append((f"siase:tramite:{t.numero}", huella(t.estatus), {"tipo": "trámite", "curso": "SIASE",
+                         "tarea": f"{t.documento} ({t.numero})", "texto": t.estatus}))
+        periodo_ev, tablas_ev, _msg = esc.evaluaciones()
+        for tb in tablas_ev:
+            for fila in tb["filas"]:
+                regs.append((f"siase:parcial:{periodo_ev}:{fila[0]}:{fila[1] if len(fila) > 1 else ''}", huella(fila),
+                             {"tipo": "parcial", "curso": "SIASE", "tarea": " · ".join(fila[:2]),
+                              "texto": " · ".join(f"{e}: {v}" for e, v in zip(tb["encabezados"], fila) if v)}))
+        regs.append(("siase:escolar", "1", {}))
+    except SiaseError:
+        pass
+    # Quien ya usaba `novedades --siase` antes de las consultas escolares: la primera lectura solo registra.
+    if not visto.hay_prefijo("siase:escolar"):
+        silenciosas.update(k for k, _, _ in regs[antes:])
+    ahora = texto.ahora()
     for a in s.afis().afis:
         clave = f"siase:afi:{a.id}"
         regs.append((clave, "x", {"tipo": "afi nueva", "curso": "SIASE", "tarea": f"{a.id} {a.evento}",
@@ -425,6 +451,215 @@ def novedades_siase(nx, visto: Visto) -> list[dict]:
     visto.marcar([(k, h) for k, h, _ in regs])
     if primera:
         hallazgos.append({"estado": "nuevo", "tipo": "siase", "curso": "SIASE", "tarea": "SIASE",
-                          "texto": f"Primera vez con SIASE: registré {len(regs)} cosas (calificaciones, historial y "
-                                   "AFIs con cupo). Desde ahora solo verás lo nuevo."})
+                          "texto": f"Primera vez con SIASE: registré {len(regs)} cosas (calificaciones, parciales, adeudos, "
+                                   "trámites, encuestas, historial y AFIs con cupo). Desde ahora solo verás lo nuevo."})
     return hallazgos
+
+
+# ---------------------------------------------------------------------- consultas escolares
+
+
+def _escolar(nx, args):
+    from .siase_escolar import Escolar
+    return Escolar(_siase(nx, args))
+
+
+def _pesos(x: float | None) -> str:
+    return "-" if x is None else f"${x:,.2f}"
+
+
+def _fila_estado(etiqueta: str, valor: str) -> None:
+    print(f"{pintar(f'{etiqueta:<16}', 'tenue')} {valor}")
+
+
+def cmd_estado(nx, args, out) -> None:
+    """Tablero con todo lo escolar de SIASE en una sola vista."""
+    e = _escolar(nx, args)
+    data: dict[str, Any] = {}
+    errores: dict[str, str] = {}
+
+    def intentar(clave: str, fn):
+        try:
+            data[clave] = fn()
+        except SiaseError as ex:
+            errores[clave] = str(ex)
+
+    intentar("situacion", e.situacion)
+    intentar("inscripcion", e.fecha_inscripcion)
+    intentar("recibo", e.recibo)
+    intentar("adeudos", e.adeudos)
+    intentar("beca", e.beca)
+    intentar("documentos", e.documentos)
+    intentar("tramites", e.tramites)
+    intentar("encuestas", e.encuestas)
+    intentar("afis", e.s.historial)
+
+    def txt():
+        sit = data.get("situacion")
+        if sit:
+            foto = "foto aceptada" if sit.foto_aceptada else pintar("foto sin aceptar", "naranja")
+            print(pintar(sit.semestre, negrita=True) + pintar(
+                f" · {sit.tipo_inscripcion.lower()} · situación: {sit.situacion.lower()} · ", "tenue") + foto)
+            print()
+        ins = data.get("inscripcion")
+        if ins:
+            _fila_estado("inscripción", f"{ins.dia} a las {ins.hora}" + pintar(f" · {ins.periodo}", "tenue"))
+        rec = data.get("recibo")
+        if rec:
+            if rec.pagado:
+                cuando = f" el {rec.pago_fecha}" if rec.pago_fecha else ""
+                _fila_estado("recibo", pintar("pagado", "oliva") + f" · {_pesos(rec.pago_monto or rec.total)}{cuando}")
+            else:
+                _fila_estado("recibo", pintar(f"por pagar {_pesos(rec.total)}", "naranja")
+                             + (f" · antes del {rec.fecha_limite}" if rec.fecha_limite else ""))
+        ade = data.get("adeudos")
+        if ade:
+            _fila_estado("adeudos", pintar("$0", "oliva") if not ade.total else pintar(_pesos(ade.total), "rojo")
+                         + pintar(f" · {len(ade.conceptos)} conceptos (nexuscli siase adeudos)", "tenue"))
+        beca = data.get("beca")
+        if beca:
+            _fila_estado("beca", beca.mensaje if beca.solicitud else pintar("sin solicitud", "tenue"))
+        doc = data.get("documentos")
+        if doc:
+            color = "oliva" if "complet" in doc.estado.lower() else "naranja"
+            _fila_estado("documentos", pintar(doc.estado.lower(), color)
+                         + (pintar(f" · faltan {len(doc.pendientes)}", "naranja") if doc.pendientes else ""))
+        tra = data.get("tramites")
+        if tra is not None:
+            if tra.tramites:
+                _fila_estado("trámites DEyA", "; ".join(f"{t.documento.lower()}: {t.estatus.lower()}" for t in tra.tramites))
+            else:
+                _fila_estado("trámites DEyA", pintar("ninguno", "tenue"))
+        enc = data.get("encuestas")
+        if enc is not None:
+            _fila_estado("encuestas", pintar(f"{len(enc)} pendiente{'s' if len(enc) != 1 else ''}", "naranja")
+                         + f": {', '.join(enc)}" if enc else pintar("ninguna pendiente", "tenue"))
+        h = data.get("afis")
+        if h:
+            _fila_estado("AFIs oficiales", f"{h.oficiales} de {h.requeridas}  {barra(h.oficiales, h.requeridas, 14)}")
+        for clave, msg in errores.items():
+            _fila_estado(clave, pintar(f"no se pudo leer: {msg}", "rojo"))
+
+    def a_dict(x):
+        if hasattr(x, "__dataclass_fields__"):
+            from dataclasses import asdict
+            return asdict(x)
+        return x
+
+    out.emitir({k: a_dict(v) for k, v in data.items()} | {"errores": errores}, txt)
+
+
+def cmd_situacion(nx, args, out) -> None:
+    sit = _escolar(nx, args).situacion()
+    out.emitir(sit.__dict__, lambda: [
+        _fila_estado("semestre", sit.semestre), _fila_estado("situación", sit.situacion.lower()),
+        _fila_estado("inscripción", sit.tipo_inscripcion.lower()),
+        _fila_estado("foto", "aceptada" if sit.foto_aceptada else "sin aceptar"), _fila_estado("división", sit.division)])
+
+
+def cmd_inscripcion(nx, args, out) -> None:
+    f = _escolar(nx, args).fecha_inscripcion()
+    out.emitir(f.__dict__, lambda: print(f"{pintar(f.periodo, negrita=True)}\n{f.dia} a las {f.hora}"))
+
+
+def cmd_adeudos(nx, args, out) -> None:
+    a = _escolar(nx, args).adeudos()
+
+    def txt():
+        print(f"Adeudo total al {a.fecha}: " + (pintar("$0", "oliva") if not a.total else pintar(_pesos(a.total), "rojo")))
+        if a.conceptos:
+            print()
+            _tabla([[c.cuenta, c.cantidad, c.concepto, _pesos(c.total)] for c in a.conceptos],
+                   ["CUENTA", "CANTIDAD", "CONCEPTO", "TOTAL"])
+
+    out.emitir({"fecha": a.fecha, "total": a.total, "conceptos": [c.__dict__ for c in a.conceptos]}, txt)
+
+
+def cmd_recibo(nx, args, out) -> None:
+    r = _escolar(nx, args).recibo(intersemestral=args.intersemestral)
+
+    def txt():
+        print(pintar(f"Recibo de servicios académicos · {r.periodo}", negrita=True))
+        if r.inscripcion:
+            print(pintar(r.inscripcion.lower(), "tenue"))
+        print()
+        filas = [[pintar(c.cuenta, "tenue"), c.concepto.capitalize(), f"{_pesos(c.importe):>10}"] for c in r.conceptos]
+        filas.append(["", pintar("total", "tenue"), pintar(f"{_pesos(r.total):>10}", negrita=True)])
+        _tabla(filas, ["CUENTA", "CONCEPTO", f"{'IMPORTE':>10}"])
+        print()
+        if r.pagado:
+            extra = f" el {r.pago_fecha}" if r.pago_fecha else ""
+            print(pintar("pagado", "oliva", negrita=True) + f"{extra} · {_pesos(r.pago_monto or r.total)}"
+                  + (pintar(f" · transacción: {r.pago_estado.lower()}", "tenue") if r.pago_estado else ""))
+        else:
+            print(pintar("por pagar", "naranja", negrita=True) + (f" · antes del {r.fecha_limite}" if r.fecha_limite else ""))
+
+    out.emitir(r.__dict__ | {"conceptos": [c.__dict__ for c in r.conceptos]}, txt)
+
+
+def cmd_recibos(nx, args, out) -> None:
+    rs = _escolar(nx, args).recibos_internos()
+    out.emitir([r.__dict__ for r in rs], lambda: [
+        print(f"{pintar(r.estado or '-', 'oliva' if 'pagad' in r.estado else 'naranja'):<10}  {r.nombre.capitalize()}")
+        for r in rs] if rs else print("Sin recibos internos."))
+
+
+def cmd_beca(nx, args, out) -> None:
+    b = _escolar(nx, args).beca()
+    out.emitir(b.__dict__, lambda: print(b.mensaje))
+
+
+def cmd_encuestas(nx, args, out) -> None:
+    enc = _escolar(nx, args).encuestas()
+    out.emitir(enc, lambda: print("\n".join(f"· {x}" for x in enc) if enc else "No tienes encuestas pendientes."))
+
+
+def cmd_tramites(nx, args, out) -> None:
+    t = _escolar(nx, args).tramites()
+
+    def txt():
+        if t.tramites:
+            _tabla([[x.numero, x.documento, x.fecha, x.importe, x.estatus] for x in t.tramites],
+                   ["SOLICITUD", "DOCUMENTO", "FECHA", "IMPORTE", "ESTATUS"])
+        else:
+            print("No tienes trámites con el DEyA.")
+        if t.se_pueden_pedir:
+            print(pintar("\nSe pueden solicitar en la web: " + ", ".join(x.lower() for x in t.se_pueden_pedir), "tenue"))
+
+    out.emitir({"tramites": [x.__dict__ for x in t.tramites], "se_pueden_pedir": t.se_pueden_pedir}, txt)
+
+
+def cmd_documentos(nx, args, out) -> None:
+    d = _escolar(nx, args).documentos()
+    out.emitir(d.__dict__, lambda: (print(d.estado), [print(f"· {p}") for p in d.pendientes]))
+
+
+def cmd_evaluaciones(nx, args, out) -> None:
+    periodo, ts, msg = _escolar(nx, args).evaluaciones(args.periodo)
+
+    def txt():
+        print(pintar(periodo, negrita=True))
+        if not ts:
+            print(msg or "Sin evaluaciones parciales en este periodo.")
+        for t in ts:
+            print()
+            _tabla(t["filas"], t["encabezados"])
+
+    out.emitir({"periodo": periodo, "tablas": ts, "mensaje": msg}, txt)
+
+
+def cmd_datos(nx, args, out) -> None:
+    secciones = _escolar(nx, args).datos()
+    if args.seccion:
+        q = texto.normalizar(args.seccion)
+        secciones = [s for s in secciones if q in texto.normalizar(s.titulo)]
+
+    def txt():
+        for s in secciones:
+            print(pintar(s.titulo, "naranja", negrita=True))
+            ancho = max(len(k) for k, _ in s.campos)
+            for k, v in s.campos:
+                print(f"  {pintar(f'{k:<{ancho}}', 'tenue')}  {v}")
+            print()
+
+    out.emitir([{"seccion": s.titulo, "campos": dict(s.campos)} for s in secciones], txt)

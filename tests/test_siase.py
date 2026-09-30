@@ -235,3 +235,111 @@ def test_cli_siase(monkeypatch, falso, tmp_path, capsys):
     with pytest.raises(SystemExit):
         cli.main(["siase", "inscribir", "4102"])  # sin terminal ni -y: no inscribe
     assert not paginas(falso, "delSavePreReg20")
+
+
+# ---------------------------------------------------------------------- consultas escolares
+
+
+def test_parsers_escolares():
+    from nexuscli import siase_escolar as E
+    sit = E.parse_situacion(F.pagina_situacion())
+    assert (sit.semestre, sit.situacion, sit.tipo_inscripcion, sit.foto_aceptada) == (
+        "Agosto-Diciembre 2026", "DEFINITIVO", "REINGRESO", True)
+    assert sit.division == "Inscripciones y Credencialización"
+    f = E.parse_fecha_inscripcion(F.pagina_fecha_inscripcion())
+    assert (f.periodo, f.dia, f.hora) == ("Agosto-Diciembre 2026", "21 Jul 2026", "09:00")
+    a = E.parse_adeudos(F.pagina_adeudos([("0405", "1", "CREDENCIAL REPOSICION", "$150.00")]))
+    assert a.total == 150 and a.conceptos[0].concepto == "CREDENCIAL REPOSICION" and a.fecha == "08/Octubre/2026"
+    assert E.parse_adeudos(F.pagina_adeudos([])).total == 0
+    assert not E.parse_beca(F.pagina_beca()).solicitud
+    assert E.parse_encuestas(F.pagina_encuestas(["Encuesta de servicios"])) == ["Encuesta de servicios"]
+    t = E.parse_tramites(F.pagina_tramites([("777", "CERTIFICADO PARCIAL", "01/09/2026", "$350.00", "EN REVISION")]))
+    assert t.tramites[0].estatus == "EN REVISION" and t.se_pueden_pedir == ["CERTIFICADO ELECTRÓNICO PARCIAL", "CERTIFICADO PARCIAL"]
+    assert E.parse_tramites(F.pagina_tramites([])).tramites == []
+    d = E.parse_documentos(F.pagina_documentos("Faltan documentos", ["Acta de nacimiento"]))
+    assert d.estado == "Faltan documentos" and d.pendientes == ["Acta de nacimiento"]
+    r = E.parse_recibo(F.pagina_recibo())
+    assert r.pagado and r.total == 2280 and [c.cuenta for c in r.conceptos] == ["0201", "0211", "0222", "0252"]
+    assert (r.periodo, r.fecha_limite, r.pago_fecha, r.pago_monto, r.pago_estado) == (
+        "Agosto-Diciembre 2026", "29 de Mayo de 2026", "02/07/2026", 2280.0, "Aprobado")
+    assert r.inscripcion == "REINGRESO - REINGRESO OFICIAL NACIONAL"
+    (ri,) = E.parse_recibos_internos(F.pagina_recibos_internos())
+    assert ri.estado == "pagadas" and ri.id == "0x0000000000abc999" and "AGOSTO-DICIEMBRE 2026" in ri.nombre
+    secciones = {s.titulo: dict(s.campos) for s in E.parse_datos(F.pagina_datos())}
+    assert secciones["Datos Generales"]["CURP"] == "XXXX000000XXXXXX00"
+    assert "RFC" not in secciones["Datos Generales"]           # vacío: se omite
+    assert secciones["Domicilio Local"]["C.P."] == "64000"
+    assert "Trabajo del Alumno" not in secciones               # sección sin nada
+    assert E.tablas(F.pagina_parciales())[0]["filas"][0][:3] == ["401", "Semiótica de la imagen", "88"]
+
+
+def test_consultas_escolares_por_red(sia, falso):
+    from nexuscli.siase_escolar import Escolar
+    e = Escolar(sia)
+    assert e.situacion().situacion == "DEFINITIVO"
+    assert e.documentos().estado == "Expediente Completo"
+    assert paginas(falso, "ecCargaDocto01.htm")[0].url.host == "deimos.dgi.uanl.mx"
+    assert "/cgi-bin/deya.sh/" in paginas(falso, "ecCargaDocto01.htm")[0].url.path
+    periodo, tablas, msg = e.evaluaciones()
+    assert periodo == "Semestral Agosto-Diciembre 2026" and tablas and not msg
+    falso.parciales = False
+    _, tablas, msg = e.evaluaciones()
+    assert tablas == [] and msg == "No cuenta con Evaluaciones o Parciales en este periodo."
+
+
+def test_cli_estado(monkeypatch, falso, tmp_path, capsys):
+    from nexuscli import cli
+
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "conf"))
+    falso.adeudos = [("0405", "1", "CREDENCIAL REPOSICION", "$150.00")]
+    falso.encuestas = ["Encuesta de servicios"]
+
+    def cliente(pacer=None, verbose=False):
+        return Client(pacer=Pacer("off"), state=tmp_path, http=httpx.Client(transport=httpx.MockTransport(falso)),
+                      credenciales=config.Credenciales(F.MATRICULA, "x", "test"))
+
+    monkeypatch.setattr(cli, "Client", cliente)
+    cli.main(["siase", "estado"])
+    salida = capsys.readouterr().out
+    for esperado in ("situación: definitivo", "21 Jul 2026 a las 09:00", "pagado · $2,280.00 el 02/07/2026",
+                     "$150.00", "sin solicitud", "expediente completo", "ninguno",
+                     "1 pendiente: Encuesta de servicios", "4 de 14"):
+        assert esperado in salida, esperado
+
+
+def test_novedades_siase_escolar(sia, falso, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from datetime import datetime
+    from nexuscli import texto
+    from nexuscli.cli_siase import novedades_siase
+    from nexuscli.store import Visto
+
+    monkeypatch.setattr(texto, "ahora", lambda: datetime(2026, 10, 8, 10, 30))
+    nx = SimpleNamespace(c=sia.c)
+    visto = Visto(tmp_path / "visto.db")
+    (primera,) = novedades_siase(nx, visto)
+    assert primera["tipo"] == "siase"
+    assert novedades_siase(nx, visto) == []
+    falso.adeudos = [("0405", "1", "CREDENCIAL REPOSICION", "$150.00")]
+    falso.encuestas = ["Encuesta de servicios"]
+    falso.tramites = [("777", "CERTIFICADO PARCIAL", "01/09/2026", "$350.00", "EN REVISION")]
+    tipos = {h["tipo"]: h for h in novedades_siase(nx, visto)}
+    assert tipos.keys() == {"adeudo", "encuesta", "trámite"}
+    assert tipos["adeudo"]["estado"] == "cambio" and "$150.00" in tipos["adeudo"]["texto"]
+
+
+def test_novedades_siase_escolar_no_avisa_de_golpe(sia, falso, tmp_path, monkeypatch):
+    """Quien ya usaba --siase antes de las consultas escolares no recibe todo como nuevo."""
+    from types import SimpleNamespace
+    from datetime import datetime
+    from nexuscli import texto
+    from nexuscli.cli_siase import novedades_siase
+    from nexuscli.store import Visto
+
+    monkeypatch.setattr(texto, "ahora", lambda: datetime(2026, 10, 8, 10, 30))
+    visto = Visto(tmp_path / "visto.db")
+    visto.marcar([("siase:cal:viejo", "x")])
+    falso.encuestas = ["Encuesta de servicios"]
+    tipos = {h["tipo"] for h in novedades_siase(SimpleNamespace(c=sia.c), visto)}
+    assert not tipos & {"adeudo", "encuesta", "trámite", "parcial"}

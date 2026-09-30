@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <sub><b>nexus y siase desde la terminal.</b> tareas, entregas en equipo, comentarios del profe, el material de cada materia, afis con cupo, kardex y horario, sin abrir el navegador.</sub>
+  <sub><b>nexus y siase desde la terminal.</b> tareas, entregas en equipo, comentarios del profe, el material de cada materia, afis con cupo, kardex, horario y pagos, sin abrir el navegador.</sub>
 </p>
 
 <p align="center">
@@ -16,7 +16,7 @@
 
 <p align="center"><img src="docs/img/rule.svg" width="100%" alt=""></p>
 
-`nexuscli` trabaja con las dos plataformas escolares de la UANL: [Nexus](https://plataformanexus.uanl.mx), donde están las clases, y [SIASE](https://deimos.dgi.uanl.mx/cgi-bin/wspd_cgi.sh/login.htm), donde están las AFIs, el kardex, las calificaciones finales y el horario. Entra con tu matrícula y tu contraseña de SIASE sin abrir un navegador, así que lo puedes usar tú en la terminal o un agente como Claude o Codex que trabaje por ti.
+`nexuscli` trabaja con las dos plataformas escolares de la UANL: [Nexus](https://plataformanexus.uanl.mx), donde están las clases, y [SIASE](https://deimos.dgi.uanl.mx/cgi-bin/wspd_cgi.sh/login.htm), donde están las AFIs, el kardex, las calificaciones, el horario y los trámites escolares. Entra con tu matrícula y tu contraseña de SIASE sin abrir un navegador, así que lo puedes usar tú en la terminal o un agente como Claude o Codex que trabaje por ti.
 
 <p align="center">
   <img src="docs/img/tareas.png" width="94%" alt="nexuscli tareas: tabla con el estado, el cierre, los puntos y la modalidad de cada tarea de dos materias">
@@ -31,7 +31,8 @@
 - Te dice qué hay de nuevo desde la última vez que preguntaste.
 - Copia el material de una materia a tu computadora: instrucciones, rúbricas, lecturas y archivos.
 - Lista las AFIs de cada mes con su cupo, te pre-registra o libera tu lugar y lleva la cuenta de cuántas oficiales llevas.
-- Lee tu kardex, tus calificaciones finales de cada periodo y tu horario.
+- Lee tu kardex, tus calificaciones finales y parciales de cada periodo y tu horario.
+- Junta en un tablero tu situación escolar, el día de inscripción, el recibo, adeudos, beca, documentos, trámites y encuestas.
 
 ## instalación
 
@@ -187,6 +188,7 @@ nexuscli siase historial                            # cuántas oficiales llevas 
 nexuscli siase kardex -p                            # solo las materias que no has aprobado
 nexuscli siase calificaciones -p "ene jun 2026"
 nexuscli siase horario
+nexuscli siase estado                               # tablero de todo lo escolar
 ```
 
 <p align="center">
@@ -211,7 +213,38 @@ nexuscli siase horario
   <img src="docs/img/siase-kardex.png" width="80%" alt="nexuscli siase kardex: materias por semestre con sus oportunidades y la calificación final">
 </p>
 
-`nexuscli novedades --siase` suma las calificaciones finales nuevas, la asistencia registrada en tus AFIs y las AFIs nuevas con cupo.
+### consultas escolares
+
+```sh
+nexuscli siase estado                     # todo lo de abajo en una pantalla
+nexuscli siase situacion                  # situación, tipo de inscripción y foto
+nexuscli siase inscripcion                # día y hora para inscribirte
+nexuscli siase recibo [--intersemestral]  # conceptos del recibo y si ya está pagado
+nexuscli siase recibos                    # recibos internos
+nexuscli siase adeudos
+nexuscli siase beca
+nexuscli siase documentos                 # si a tu expediente le falta algo
+nexuscli siase tramites                   # trámites con el Departamento Escolar y de Archivo
+nexuscli siase encuestas
+nexuscli siase evaluaciones -p "ago dic 2026"
+nexuscli siase datos -s domicilio
+```
+
+<p align="center">
+  <img src="docs/img/siase-estado.png" width="94%" alt="nexuscli siase estado: semestre, situación, día de inscripción, recibo pagado, adeudos, beca, documentos, trámites, una encuesta pendiente y AFIs oficiales">
+</p>
+
+`estado` lee nueve páginas del menú de SIASE y las junta en una vista. Lo que ya está en orden sale en verde, lo que te toca hacer en naranja y los adeudos en rojo. Si una página falla, esa fila lo dice y las demás salen igual.
+
+<p align="center">
+  <img src="docs/img/siase-recibo.png" width="80%" alt="nexuscli siase recibo: conceptos del recibo del semestre con su importe, el total y la fecha de pago">
+</p>
+
+`datos` enseña lo que SIASE tiene de ti: NSS, CURP, domicilio y demás, sin los campos vacíos. `-s` deja solo una sección. Es información sensible: no la pegues en un issue ni en un chat.
+
+`encuestas`, `tramites`, `beca` y `documentos` solo leen. Contestar una encuesta o pedir un trámite se hace en la web.
+
+`nexuscli novedades --siase` suma las calificaciones finales nuevas, las parciales, la asistencia registrada en tus AFIs, las AFIs nuevas con cupo, los adeudos, las encuestas nuevas y los cambios de estatus de tus trámites.
 
 A veces SIASE bloquea su menú hasta que respondas una pregunta, como la de la incorporación al IMSS. `nexuscli` puede leer de todos modos, pero esa pregunta la contestas tú en la web. [docs/siase.md](docs/siase.md) explica cada página que lee.
 
@@ -253,7 +286,7 @@ Entre una llamada y otra espera un tiempo al azar, casi siempre alrededor de un 
 | `~/.local/state/nexuscli/visto.db` | huellas de lo que ya viste, para `novedades` |
 | `~/.local/state/nexuscli/clones.json` | dónde y cuándo clonaste cada materia |
 
-Todos tienen permisos 600 dentro de carpetas 700, así que solo tu usuario los lee. Las calificaciones, los comentarios, el kardex y el historial de AFIs se piden cada vez y no se guardan; `visto.db` solo tiene huellas (hashes) para saber qué cambió.
+Todos tienen permisos 600 dentro de carpetas 700, así que solo tu usuario los lee. Las calificaciones, los comentarios, el kardex, el historial de AFIs, los pagos y tus datos personales se piden cada vez y no se guardan; `visto.db` solo tiene huellas (hashes) para saber qué cambió.
 
 ## desarrollo
 
