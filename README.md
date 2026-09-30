@@ -128,12 +128,12 @@ Crea `~/escuela/seim/` con una carpeta por actividad y una de generales:
 
 ```text
 seim/
-├── README.md                   índice: cierre, puntos, modalidad, recursos y rúbrica de cada actividad
-├── generales/                  programa analítico, bienvenida, avisos y lecturas de la materia
+├── README.md             índice de actividades
+├── generales/            programa, bienvenida, avisos y lecturas
 ├── 2.2/
 │   ├── instrucciones.md
 │   ├── rubrica.md
-│   ├── recursos.md             archivos, enlaces y lecturas de la pestaña Recursos
+│   ├── recursos.md       archivos, enlaces y lecturas
 │   ├── GI_Act 2.2 guía de la actividad.pdf
 │   └── Barthes - Retórica de la imagen.pdf
 ├── 2.3/ …
