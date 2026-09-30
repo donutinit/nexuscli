@@ -1,0 +1,28 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NO_COLOR: "1"
+    steps:
+      - name: checkout
+        # anclado a SHA: un tag se puede mover
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: uv
+        run: pipx install uv==0.12.15
+
+      - name: tests
+        run: |
+          uv sync --frozen
+          uv run pytest -q

@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+# Credenciales, sesión y descargas nunca van a git (viven en ~/.config y ~/.local/state).
+*.env
+descargas/
+
+# Notas privadas de cada máquina (ver AGENTS.md)
+*.local.md
