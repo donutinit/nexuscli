@@ -65,6 +65,15 @@ def curso_corto(nombre: str) -> str:
     return (nombre or "").split("|")[0].strip()
 
 
+_MINUSCULAS = {"de", "del", "la", "las", "el", "los", "y", "e", "en", "para", "por", "a", "al", "con", "o", "u"}
+
+
+def titulo(s: str) -> str:
+    """'FACULTAD DE ARTES VISUALES' -> 'Facultad de Artes Visuales'."""
+    palabras = (s or "").lower().split()
+    return " ".join(p if i and p in _MINUSCULAS else p[:1].upper() + p[1:] for i, p in enumerate(palabras))
+
+
 def tamano(n: int | float | None) -> str:
     if not n:
         return "-"

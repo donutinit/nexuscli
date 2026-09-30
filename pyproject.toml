@@ -1,13 +1,13 @@
 [project]
 name = "nexuscli"
-version = "0.2.0"
-description = "Nexus UANL desde la terminal: tareas, entregas en equipo, calificaciones, comentarios y el material de cada materia."
+version = "0.3.0"
+description = "Nexus y SIASE de la UANL desde la terminal: tareas, entregas en equipo, comentarios, material de cada materia, AFIs con cupo, kardex y horario."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Von Diego" }]
 requires-python = ">=3.12"
-keywords = ["uanl", "nexus", "cli", "escuela", "agentes"]
+keywords = ["uanl", "nexus", "siase", "afi", "cli", "escuela", "agentes"]
 classifiers = [
     "Environment :: Console",
     "Natural Language :: Spanish",
@@ -21,6 +21,7 @@ dependencies = [
 [project.urls]
 Repositorio = "https://github.com/donutinit/nexuscli"
 API = "https://github.com/donutinit/nexuscli/blob/main/docs/api.md"
+SIASE = "https://github.com/donutinit/nexuscli/blob/main/docs/siase.md"
 
 [project.scripts]
 nexuscli = "nexuscli.cli:main"

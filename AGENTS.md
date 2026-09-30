@@ -1,8 +1,8 @@
 # nexuscli: guía para agentes
 
-CLI de Python para Nexus UANL. Existe para que un agente (Claude, Codex, OpenCode) use Nexus por
-la persona: leer tareas, calificaciones y comentarios, entregar, publicar y clonar el material de
-las materias. `AGENTS.md` es el archivo canónico y `CLAUDE.md` tiene el mismo contenido. Si
+CLI de Python para Nexus y SIASE de la UANL. Existe para que un agente (Claude, Codex, OpenCode)
+los use por la persona: leer tareas, calificaciones y comentarios, entregar, publicar, clonar el
+material de las materias, ver AFIs con cupo, kardex y horario, y pre-registrarse en AFIs. `AGENTS.md` es el archivo canónico y `CLAUDE.md` tiene el mismo contenido. Si
 existe `CLAUDE.local.md` (fuera de git), léelo también: trae notas de la máquina.
 
 ## reglas
@@ -12,6 +12,10 @@ existe `CLAUDE.local.md` (fuera de git), léelo también: trae notas de la máqu
   deshace limpio.
 - Los comandos que modifican Nexus muestran un resumen y piden confirmación. Usa `-y` solo
   cuando la persona ya aprobó ese resumen concreto.
+- Lo mismo con SIASE: `nexuscli siase inscribir` y `liberar` solo si la persona lo pidió, para
+  esa AFI concreta.
+- Nunca respondas por la persona las preguntas que SIASE pone antes de su menú (incorporación al
+  IMSS, encuestas, datos personales). Las consultas funcionan igual; esas se contestan en la web.
 - `nexuscli api` es para métodos `Consultar*`. `--escribir` solo si la persona lo pidió.
 - No uses `--pace off` contra el servidor real; es para tests.
 - Para leer resultados usa `--json`.
@@ -32,6 +36,11 @@ nexuscli borrar TAREA [ENTREGA_ID...|--todas]
 nexuscli clonar -c CURSO -o CARPETA [--personal]
 nexuscli codigo CURSO CODIGO            # código corto de materia
 nexuscli api Dominio/ConsultarAlgo '{"CursoId": 1}'
+nexuscli novedades --siase              # suma calificaciones finales, asistencia a AFIs y AFIs nuevas
+
+nexuscli siase afis [-d] [-m MES] [-a AREA] [-b TEXTO] [-s] [--nuevas]
+nexuscli siase afi ID | inscribir ID | liberar ID
+nexuscli siase historial | kardex [-p] | periodos | calificaciones [-p PERIODO] | horario [--lista] | perfil
 ```
 
 Las tareas se nombran por su número (`2.4`, `PIA`), su id o un pedazo del nombre; las materias,
@@ -46,7 +55,12 @@ con `-c` y un pedazo del nombre, su id o su código.
 - `src/nexuscli/cli.py`: comandos. `clonar.py` y `markdown.py`: la copia local. `materias.py`:
   códigos, clones y avisos de cierre. `store.py`: lo visto por `novedades`. `pace.py`: pausas.
   `estilo.py`: color. `texto.py`: fechas y texto. `config.py`: rutas y credenciales.
-- Tests: `uv run pytest`, sin red. `tests/test_payloads.py` fija los cuerpos de escritura; si
+- `src/nexuscli/siase.py`: sesión de SIASE (`HTMLtrim`), parsers puros `parse_*` y pre-registro de
+  AFIs; `dom.py` es el árbol HTML tolerante que usan; `cli_siase.py`, los comandos.
+  `docs/siase.md` es la referencia. En SIASE pre-registrar y liberar son la misma petición: no
+  quites los candados que revisan el historial antes y después.
+- Tests: `uv run pytest`, sin red. `tests/siase_falso.py` es un SIASE de mentira con la
+  estructura de las páginas reales; úsalo si cambias un parser. `tests/test_payloads.py` fija los cuerpos de escritura; si
   cambias uno, que sea porque el frontend de Nexus cambió.
 - Capturas del README: `uv run python docs/capturas/generar.py` (necesita Chromium). Usan datos
   inventados de `docs/capturas/demo.py`: nunca pongas datos reales de nadie en el repo.

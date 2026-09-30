@@ -130,10 +130,11 @@ class Client:
         if self.verbose:
             print(f"· {msg}", flush=True)
 
-    def login(self) -> Sesion:
+    def entrar_siase(self) -> str:
+        """Login en SIASE. Regresa la página de carreras (eselcarrera.htm), que trae la sesión de
+        SIASE (HTMLtrim) y la liga con la que SIASE abre Nexus."""
         cred = self.credenciales()
         self._log("login en SIASE")
-
         self.pacer.antes()
         r = self.http.get(config.SIASE_LOGIN)
         self.pacer.despues()
@@ -147,7 +148,11 @@ class Client:
         r = self.http.post(config.SIASE_POST, data=form, headers={"Referer": config.SIASE_LOGIN})
         self.pacer.despues()
         r.raise_for_status()
-        html = r.content.decode("latin-1")
+        return r.content.decode("latin-1")
+
+    def login(self) -> Sesion:
+        cred = self.credenciales()
+        html = self.entrar_siase()
         m = re.search(r'plataformanexus\.uanl\.mx/#/LoginSIASE\?([^"\']+)', html)
         if not m:
             raise LoginError(_motivo_login(html))

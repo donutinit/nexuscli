@@ -15,6 +15,7 @@ from .client import Client, LoginError, NexusError
 from .nexus import EVIDENCIA, Ambiguo, Nexus, NoEncontrado, Tarea, documentos_en
 from .pace import PERFILES, Pacer
 from .materias import CodigoError, avisos_de_cierre, proponer, registrar_clon, ultimo_clon
+from .siase import SiaseError
 from .store import Visto, huella
 
 # ---------------------------------------------------------------------- salida
@@ -161,9 +162,18 @@ def cmd_doctor(nx: Nexus, args, out: Salida) -> None:
         raise SystemExit(1)
 
 
+def proponer_codigo(nx: Nexus, nombre: str, usados: set[str]) -> str:
+    """La abreviatura oficial de SIASE si ya se conoce (CRNG, ANAU...); si no, una inventada."""
+    from .siase import abreviatura_oficial
+    oficial = abreviatura_oficial(nx.c.state, nombre)
+    if oficial and oficial not in usados:
+        return oficial
+    return proponer(nombre, usados)
+
+
 def _fila_materia(nx: Nexus, c, usados: set[str]) -> dict:
     cod = nx.materias.codigo(c.id)
-    propuesta = None if cod else proponer(c.nombre, usados)
+    propuesta = None if cod else proponer_codigo(nx, c.nombre, usados)
     if propuesta:
         usados.add(propuesta)
     clon = ultimo_clon(nx.c.state, c.id)
@@ -200,6 +210,10 @@ def cmd_cursos(nx: Nexus, args, out: Salida) -> None:
         if sin:
             print("\nCon '?' es una propuesta. Confírmala con `nexuscli codigo "
                   f"{sin[0]['id']} {sin[0]['codigo_propuesto']}`, o todas con `nexuscli codigo --aceptar`.")
+            from .siase import abreviaturas_path
+            if not abreviaturas_path(nx.c.state).exists():
+                print(pintar("Corre `nexuscli siase horario` una vez y las propuestas usarán las abreviaturas "
+                             "oficiales de SIASE.", "tenue"))
 
     out.emitir(filas, txt)
     avisar_cierres(nx, nx.cursos(), out)
@@ -231,7 +245,7 @@ def cmd_codigo(nx: Nexus, args, out: Salida) -> None:
         return
     if not args.codigo:
         cod = m.codigo(c.id)
-        prop = proponer(c.nombre, set(m.codigos.values()))
+        prop = proponer_codigo(nx, c.nombre, set(m.codigos.values()))
         out.emitir({"id": c.id, "codigo": cod, "codigo_propuesto": None if cod else prop}, lambda: print(
             f"{c.id} {cod}  ({c.nombre})" if cod else f"{c.nombre} no tiene código. Propuesta: {prop}"))
         return
@@ -849,7 +863,8 @@ def clasificar_novedades(visto: Visto, por_curso: list[tuple[Any, list]], todo: 
 
 
 COLOR_NOVEDAD = {"cierre": "rojo", "materia nueva": "hueso", "comentario": "vino", "calificación": "oliva",
-                 "aviso": "naranja", "foro": "hueso", "mensaje": "hueso"}
+                 "calificación final": "oliva", "aviso": "naranja", "foro": "hueso", "mensaje": "hueso",
+                 "afi": "oliva", "afi nueva": "naranja", "siase": "hueso"}
 
 
 def cmd_novedades(nx: Nexus, args, out: Salida) -> None:
@@ -860,6 +875,10 @@ def cmd_novedades(nx: Nexus, args, out: Salida) -> None:
     if not args.no_marcar:
         visto.marcar(r["marcas"])
         visto.conocer(r["materias"])
+    de_siase: list[dict] = []
+    if args.siase and not args.no_marcar:
+        from .cli_siase import novedades_siase
+        de_siase = novedades_siase(nx, visto)
     visto.close()
     cierres = [{"estado": "aviso", "tipo": "cierre", "curso": a.curso, "curso_id": a.curso_id, "tarea": a.curso,
                 "texto": f"{a.texto}.\n{a.comando}"}
@@ -869,9 +888,10 @@ def cmd_novedades(nx: Nexus, args, out: Salida) -> None:
         out.emitir({"primera_vez": True, "registrados": len(r["marcas"]), "cierres": cierres}, lambda: (
             print(f"Primera vez: registré {len(r['marcas'])} cosas como ya vistas. Desde ahora `nexuscli novedades` "
                   "te enseña solo lo nuevo (usa --todo para ver todo, o `nexuscli comentarios`)."),
-            [print(f"[cierre] {x['texto']}") for x in cierres]))
+            [print(f"[cierre] {x['texto']}") for x in cierres],
+            [print(f"[{x['tipo']}] {x['texto']}") for x in de_siase]))
         return
-    hallazgos = cierres + r["hallazgos"]
+    hallazgos = cierres + de_siase + r["hallazgos"]
     usados = set(nx.materias.codigos.values())
     for h in hallazgos:
         if h["tipo"] != "materia nueva":
@@ -880,7 +900,7 @@ def cmd_novedades(nx: Nexus, args, out: Salida) -> None:
         if cod:
             h["texto"] += f"\nMírala con `nexuscli tareas -c {cod}`."
         else:
-            prop = proponer(h["curso"], usados)
+            prop = proponer_codigo(nx, h["curso"], usados)
             usados.add(prop)
             h["texto"] += (f"\nMírala con `nexuscli tareas -c {h['curso_id']}` y dale código: "
                            f"`nexuscli codigo {h['curso_id']} {prop}`.")
@@ -889,13 +909,13 @@ def cmd_novedades(nx: Nexus, args, out: Salida) -> None:
         if not hallazgos:
             print("Nada nuevo.")
             return
-        orden = ["cierre", "materia nueva", "comentario", "calificación", "aviso", "foro", "mensaje", "tarea",
-                 "entrega", "tema de foro"]
+        orden = ["cierre", "materia nueva", "siase", "comentario", "calificación", "calificación final", "aviso", "foro",
+                 "mensaje", "afi", "afi nueva", "tarea", "entrega", "tema de foro"]
         hallazgos.sort(key=lambda h: (orden.index(h["tipo"]) if h["tipo"] in orden else 99, h["curso"]))
         for h in hallazgos:
             etiqueta = pintar("[" + h["tipo"] + (" (cambió)" if h["estado"] == "cambio" else "") + "]",
                               COLOR_NOVEDAD.get(h["tipo"], "tenue"), negrita=True)
-            if h["tipo"] in ("cierre", "materia nueva"):
+            if h["tipo"] in ("cierre", "materia nueva", "siase"):
                 print(f"{etiqueta} {h['curso']}")
                 print(indent(h["texto"], 4))
                 continue
@@ -934,7 +954,7 @@ def cmd_clonar(nx: Nexus, args, out: Salida) -> None:
     if sin_codigo:
         lineas = []
         for c in sin_codigo:
-            prop = proponer(c.nombre, usados)
+            prop = proponer_codigo(nx, c.nombre, usados)
             usados.add(prop)
             lineas.append(f"  nexuscli codigo {c.id} {prop}    # {c.nombre}")
         raise SystemExit("Estas materias no tienen código, que es el nombre de su carpeta. Asígnalo (la propuesta "
@@ -1127,6 +1147,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--no-marcar", action="store_true", help="solo mirar; no marcar como visto")
     sp.add_argument("--todo", action="store_true", help="la primera vez, enseñar todo en lugar de solo registrar")
     sp.add_argument("--sin-foro", action="store_true", help="no revisar foro ni mensajes (más rápido)")
+    sp.add_argument("--siase", action="store_true",
+                    help="suma SIASE: calificaciones finales, asistencia a AFIs y AFIs nuevas con cupo")
 
     sp = add("clonar", cmd_clonar,
              "copia local de las tareas: instrucciones, rúbrica y recursos (y con --personal tus calificaciones)",
@@ -1137,6 +1159,48 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--sin-archivos", action="store_true", help="solo los .md, sin bajar archivos ni imágenes")
     sp.add_argument("--personal", action="store_true", help="agrega calificación, rúbrica marcada, comentarios y tus entregas")
     sp.add_argument("--ocultos", action="store_true", help="incluye recursos que Nexus no le muestra al estudiante")
+
+    from . import cli_siase as cs
+    sp_siase = sub.add_parser("siase", help="SIASE: AFIs con cupo, historial de AFIs, kardex, calificaciones y horario",
+                              description="SIASE: AFIs con cupo, historial de AFIs, kardex, calificaciones y horario.")
+    ss = sp_siase.add_subparsers(dest="siase_cmd", metavar="COMANDO", required=True)
+
+    def add_s(nombre: str, fn, ayuda: str, si: bool = False) -> argparse.ArgumentParser:
+        p_ = ss.add_parser(nombre, parents=[comun], help=ayuda, description=ayuda)
+        p_.add_argument("--carrera", help="si tienes varias carreras en SIASE: parte de su nombre")
+        if si:
+            p_.add_argument("-y", "--si", action="store_true", help="no preguntar confirmación")
+        p_.set_defaults(fn=fn)
+        return p_
+
+    add_s("perfil", cs.cmd_perfil, "tu matrícula, nombre, carrera y plan")
+    sp = add_s("afis", cs.cmd_afis, "AFIs del mes con su cupo")
+    sp.add_argument("-m", "--mes", help="mes (número o nombre); default: el que enseña SIASE")
+    sp.add_argument("-a", "--area", help="área: culturales, artísticas, deportivas, académicas...")
+    sp.add_argument("-d", "--con-cupo", action="store_true", help="solo las que tienen lugares")
+    sp.add_argument("-b", "--buscar", help="texto en el nombre, descripción u organizador")
+    sp.add_argument("-s", "--semana", action="store_true", help="solo las de los próximos 7 días")
+    sp.add_argument("-l", "--largo", action="store_true", help="con la descripción de cada una")
+    sp.add_argument("--pasadas", action="store_true", help="incluye las que ya terminaron")
+    sp.add_argument("--nuevas", action="store_true", help="solo las que no habías visto")
+    sp = add_s("afi", cs.cmd_afi, "detalle de una AFI: descripción, cupo, lugar y si estás pre-registrado")
+    sp.add_argument("id", type=int)
+    sp.add_argument("-m", "--mes")
+    add_s("historial", cs.cmd_historial, "tus AFIs: cuántas oficiales llevas de cuántas y cada evento")
+    sp = add_s("inscribir", cs.cmd_inscribir, "pre-regístrate en una AFI (pide confirmación)", si=True)
+    sp.add_argument("id", type=int)
+    sp.add_argument("-m", "--mes")
+    sp = add_s("liberar", cs.cmd_liberar, "libera tu lugar en una AFI en la que estás pre-registrado", si=True)
+    sp.add_argument("id", type=int)
+    sp = add_s("kardex", cs.cmd_kardex, "todas tus materias con sus oportunidades")
+    sp.add_argument("-s", "--semestre", type=int)
+    sp.add_argument("-p", "--pendientes", action="store_true", help="solo las que no has aprobado")
+    add_s("periodos", cs.cmd_periodos, "periodos escolares para calificaciones y horario")
+    sp = add_s("calificaciones", cs.cmd_calificaciones, "calificaciones finales de un periodo")
+    sp.add_argument("-p", "--periodo", help="número de `periodos` o parte del nombre (default: el actual)")
+    sp = add_s("horario", cs.cmd_horario, "tu horario de clases de un periodo")
+    sp.add_argument("-p", "--periodo", help="número de `periodos` o parte del nombre (default: el actual)")
+    sp.add_argument("-l", "--lista", action="store_true", help="por día en lugar de cuadrícula")
 
     sp = add("api", cmd_api, "llamada directa a WebApi/<Dominio>/<Método> (lectura; --escribir para lo demás)", si=True)
     sp.add_argument("endpoint", help="p. ej. Curso/ConsultarDetalleCurso")
@@ -1160,6 +1224,9 @@ def main(argv: list[str] | None = None) -> None:
     except (NoEncontrado, LoginError, config.CredencialesError) as e:
         print(f"nexuscli: {e}", file=sys.stderr)
         raise SystemExit(2)
+    except SiaseError as e:
+        print(f"nexuscli: SIASE: {e}", file=sys.stderr)
+        raise SystemExit(1)
     except NexusError as e:
         print(f"nexuscli: Nexus respondió con error: {e}", file=sys.stderr)
         raise SystemExit(1)

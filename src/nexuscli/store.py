@@ -45,6 +45,9 @@ class Visto:
     def vacio(self) -> bool:
         return self.db.execute("SELECT 1 FROM visto LIMIT 1").fetchone() is None
 
+    def hay_prefijo(self, prefijo: str) -> bool:
+        return self.db.execute("SELECT 1 FROM visto WHERE clave LIKE ? LIMIT 1", (prefijo + "%",)).fetchone() is not None
+
     def estado(self, clave: str, h: str) -> str | None:
         """None si ya se vio igual; 'nuevo' o 'cambio' si no."""
         row = self.db.execute("SELECT huella FROM visto WHERE clave = ?", (clave,)).fetchone()

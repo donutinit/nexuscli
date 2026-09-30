@@ -25,9 +25,11 @@ import httpx
 
 RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ / "src"))
+sys.path.insert(0, str(RAIZ))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from demo import DemoNexus  # noqa: E402
+from tests.siase_falso import EventoFalso, SiaseFalso  # noqa: E402
 from nexuscli import cli, config, texto  # noqa: E402
 from nexuscli.client import Client, Sesion  # noqa: E402
 from nexuscli.pace import Pacer  # noqa: E402
@@ -45,6 +47,10 @@ class Sesiones:
     def __init__(self, tmp: Path) -> None:
         self.tmp = tmp
         self.demo = DemoNexus()
+        self.siase = SiaseFalso()
+        # Un pre-registro a futuro, para que el historial tenga una "próxima".
+        self.siase.historial.append(EventoFalso(4106, "UANL IT Summit: bloque de diseño", "INNOVACION Y EMPRENDIMIENTO",
+                                                "20/10/2026 10:00", False, False, 0, "Agosto-Diciembre 2026"))
         (tmp / "config" / "nexuscli").mkdir(parents=True)
         (tmp / "config" / "nexuscli" / "materias").write_text("100001 seim\n100002 guci\n")
         os.environ.update({"XDG_CONFIG_HOME": str(tmp / "config"), "NEXUS_STATE_DIR": str(tmp / "estado"),
@@ -52,11 +58,14 @@ class Sesiones:
         os.environ.pop("NO_COLOR", None)
         texto.ahora = lambda: AHORA  # todo el CLI pregunta la hora por aquí
         cli.confirmar = lambda pregunta, si: print(f"{pregunta} [s/N] s")
-        demo = self.demo
+        demo, siase = self.demo, self.siase
+
+        def transporte(req: httpx.Request) -> httpx.Response:
+            return siase(req) if req.url.host == "deimos.dgi.uanl.mx" else demo(req)
 
         def cliente(pacer=None, verbose=False):
             c = Client(pacer=Pacer("off"), state=tmp / "estado",
-                       http=httpx.Client(transport=httpx.MockTransport(demo)),
+                       http=httpx.Client(transport=httpx.MockTransport(transporte)),
                        credenciales=config.Credenciales("1234567", "demo", "demo"))
             c._sesion = Sesion(token="demo", area_id=1, rol_id=5, cuenta_id=100200, expira=time.time() + 3600)
             return c
@@ -149,6 +158,18 @@ pre {{ margin: 0; padding: 22px 30px 26px; font: 15px/1.6 marcas, "{FUENTE}", mo
 """
 
 
+def titulo_ventana(comando: str) -> str:
+    """'nexuscli siase afis -m octubre' -> 'nexuscli · siase afis'."""
+    palabras = comando.split()[1:]
+    sub = []
+    for p in palabras:
+        if p.startswith("-"):
+            break
+        sub.append(p)
+    n = 2 if sub[:1] == ["siase"] else 1
+    return " · ".join(["nexuscli", " ".join(sub[:n])])
+
+
 def ventana(comando: str, salida: str) -> tuple[str, int, int]:
     lineas = salida.splitlines()
     cols = max([COLS_MIN, len(comando) + 2] + [ancho_visible(l) for l in lineas])
@@ -156,7 +177,7 @@ def ventana(comando: str, salida: str) -> tuple[str, int, int]:
     doc = f"""<!doctype html><meta charset="utf-8"><style>{CSS_BASE}</style>
 <div class="win"><div class="bar">
 <span class="dot" style="background:#b23a2f"></span><span class="dot" style="background:#d9873f"></span>
-<span class="dot" style="background:#5c6b52"></span><div class="titulo">{html.escape(comando.split()[0])} · {html.escape(comando.split()[1] if len(comando.split()) > 1 else '')}</div>
+<span class="dot" style="background:#5c6b52"></span><div class="titulo">{html.escape(titulo_ventana(comando))}</div>
 </div><pre>{cuerpo}</pre></div>"""
     ancho = 44 * 2 + 30 * 2 + round(cols * 9.0) + 4
     alto = 36 + 60 + 38 + 22 + 26 + round((len(lineas) + 1) * 24) + 2
@@ -206,11 +227,11 @@ def recorte(salida: str, desde: int, hasta: int) -> str:
 def banner(cuadros: list[tuple[str, str]]) -> None:
     """Hoja de contacto: cuatro cuadros de 6x6; el primero es el título."""
     marcas = ["▸ 12", "▸ 12A  NEXUSCLI 400", "▸ 13", "▸ 13A  NEXUSCLI 400"]
-    etiquetas = ["01", "02 tareas", "03 novedades", "04 clonar"]
+    etiquetas = ["01", "02 tareas", "03 afis con cupo", "04 novedades"]
     celdas = [f"""<div class="cuadro titulo"><div>
       <div class="marca">nexuscli<span class="cursor"></span></div>
-      <div class="lema">nexus uanl desde la terminal</div>
-      <div class="sub">tareas · entregas en equipo · calificaciones<br>comentarios · el material de cada materia</div>
+      <div class="lema">nexus y siase desde la terminal</div>
+      <div class="sub">tareas · entregas en equipo · comentarios<br>afis con cupo · kardex · horario</div>
     </div></div>"""]
     for comando, salida in cuadros:
         celdas.append(f"""<div class="cuadro"><pre><span class="prompt">$</span> <b>{html.escape(comando)}</b>
@@ -280,13 +301,19 @@ def main() -> None:
         captura("clonar", "nexuscli clonar -c seim -o escuela", clonar)
         captura("cursos", "nexuscli cursos", s.correr("cursos"))
 
+        afis = s.correr("siase", "afis", "-m", "octubre", "-d")
+        captura("siase-afis", "nexuscli siase afis -m octubre -d", afis)
+        captura("siase-historial", "nexuscli siase historial", s.correr("siase", "historial"))
+        captura("siase-horario", "nexuscli siase horario", s.correr("siase", "horario"))
+        captura("siase-kardex", "nexuscli siase kardex", s.correr("siase", "kardex"))
+
         # Para el banner, las columnas que caben en un cuadro de 6x6.
         corto = lambda salida, n: "\n".join(
             _SGR.sub(lambda m: m.group(0), l) for l in salida.splitlines()[:n])
         banner([
             ("nexuscli tareas", corto(tareas, 14)),
+            ("nexuscli siase afis -d", corto(afis, 12)),
             ("nexuscli novedades", corto(novedades, 12)),
-            ("nexuscli clonar", corto(clonar, 12)),
         ])
 
 
