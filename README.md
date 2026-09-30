@@ -217,7 +217,7 @@ A veces SIASE bloquea su menú hasta que respondas una pregunta, como la de la i
 
 ## para agentes
 
-`nexuscli` se hizo para que un agente de IA pueda usar Nexus por la persona. Todos los comandos aceptan `--json` y regresan la información completa:
+`nexuscli` se hizo para que un agente de IA pueda usar Nexus y SIASE por la persona. Todos los comandos aceptan `--json` y regresan la información completa:
 
 ```sh
 nexuscli tareas -p --json | jq '.[] | {clave, nombre, fin, estado}'
