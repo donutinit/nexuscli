@@ -1,8 +1,7 @@
 """Consultas escolares de SIASE: situación, inscripción, pagos, becas, trámites y datos.
 
-Son las opciones de solo lectura del menú de SIASE. Igual que en siase.py, cada `parse_*`
-recibe HTML y regresa datos, sin red. Las páginas que modifican algo (solicitudes, cargas,
-encuestas, bajas) no están aquí a propósito.
+Igual que en siase.py, cada `parse_*` recibe HTML y regresa datos, sin red. Salvo la evaluación
+docente, son las opciones de solo lectura del menú de SIASE.
 """
 
 from __future__ import annotations
@@ -11,7 +10,9 @@ import re
 from dataclasses import dataclass, field
 
 from . import dom
-from .siase import BASE, Siase, SiaseError, alertas, parse_periodos, elegir_periodo, revisar_sesion
+from .siase import (
+    BASE, Siase, SiaseError, alertas, campos_formulario, parse_periodos, elegir_periodo, revisar_sesion,
+)
 
 DEYA = "https://deimos.dgi.uanl.mx/cgi-bin/deya.sh/"
 
@@ -21,6 +22,7 @@ PAGINAS = {
     "adeudos": BASE + "ecavpag04.htm",
     "beca": BASE + "bccosobe01.htm",
     "encuestas": BASE + "eenc01.htm",
+    "encuestas_docentes": BASE + "cemaenc01.htm",
     "tramites": BASE + "eccontram03.htm",
     "documentos": DEYA + "ecCargaDocto01.htm",
     "recibo": BASE + "ecBolRec-v02.htm",
@@ -160,6 +162,105 @@ def parse_encuestas(pagina: str) -> list[str]:
     if "Encuesta" not in raiz.texto():
         raise _sin_datos(pagina, "tus encuestas")
     return [o.texto() for o in raiz.todos("option") if o.attr("value") not in ("", "0") and o.texto()]
+
+
+@dataclass
+class EncuestaPendiente:
+    valor: str = field(repr=False)
+    nombre: str = ""
+
+
+@dataclass
+class ListaEncuestasDocentes:
+    encuestas: list[EncuestaPendiente]
+    accion: str = field(repr=False)
+    resill: str = field(repr=False)
+
+
+@dataclass
+class OpcionEncuesta:
+    texto: str
+    valor: str = field(repr=False)
+
+
+@dataclass
+class PreguntaEncuesta:
+    numero: int
+    texto: str
+    opciones: list[OpcionEncuesta]
+    campo: str = field(repr=False)
+
+
+@dataclass
+class EncuestaDocente:
+    nombre: str
+    preguntas: list[PreguntaEncuesta]
+    valor: str = field(repr=False)
+    accion: str = field(repr=False)
+    html: str = field(repr=False)
+
+    def as_dict(self) -> dict:
+        return {"nombre": self.nombre, "preguntas": [
+            {"numero": p.numero, "pregunta": p.texto, "opciones": [o.texto for o in p.opciones]}
+            for p in self.preguntas
+        ]}
+
+
+def parse_encuestas_docentes(pagina: str) -> ListaEncuestasDocentes:
+    raiz = dom.parse(pagina)
+    sel = raiz.primero("select", name="HTMLEncuesta")
+    form = raiz.primero("form")
+    resill = raiz.primero("input", name="HTMLResill")
+    if sel is None or form is None or resill is None:
+        raise _sin_datos(pagina, "tus encuestas docentes")
+    encuestas = [EncuestaPendiente(o.attr("value"), o.texto()) for o in sel.todos("option")
+                 if o.attr("value") and o.texto()]
+    return ListaEncuestasDocentes(encuestas, form.attr("action"), resill.attr("value"))
+
+
+def parse_encuesta_docente(pagina: str, pendiente: EncuestaPendiente) -> EncuestaDocente:
+    raiz = dom.parse(pagina)
+    radios = [n for n in raiz.iterar() if n.tag == "input" and n.attr("type").lower() == "radio"
+              and n.attr("name")]
+    grupos: dict[str, list[str]] = {}
+    for radio in radios:
+        grupos.setdefault(radio.attr("name"), []).append(radio.attr("value"))
+
+    bloques: list[tuple[int, str, list[str]]] = []
+    actual: tuple[int, str, list[str]] | None = None
+    for linea in raiz.texto(saltos=True).splitlines():
+        m = re.search(r"(\d+)\.-\s*(.+)", linea)
+        if m:
+            if actual:
+                bloques.append(actual)
+            actual = (int(m.group(1)), m.group(2), [])
+        elif actual:
+            actual[2].append(linea)
+    if actual:
+        bloques.append(actual)
+
+    if not grupos or len(bloques) != len(grupos):
+        raise _sin_datos(pagina, "las preguntas de la encuesta docente")
+    preguntas = []
+    for (numero, pregunta, opciones), (campo, valores) in zip(bloques, grupos.items()):
+        if len(opciones) != len(valores):
+            raise SiaseError(f"SIASE regresó {len(valores)} valores y {len(opciones)} respuestas para la pregunta {numero}")
+        preguntas.append(PreguntaEncuesta(numero, pregunta,
+                                          [OpcionEncuesta(t, v) for t, v in zip(opciones, valores)], campo))
+    form = raiz.primero("form")
+    if form is None:
+        raise _sin_datos(pagina, "el formulario de la encuesta docente")
+    return EncuestaDocente(pendiente.nombre, preguntas, pendiente.valor, form.attr("action"), pagina)
+
+
+def elegir_opcion(pregunta: PreguntaEncuesta, consulta: str) -> OpcionEncuesta:
+    from . import texto
+    q = texto.normalizar(consulta)
+    hits = [o for o in pregunta.opciones if texto.normalizar(o.texto) == q]
+    if len(hits) != 1:
+        raise SiaseError(f"Respuesta {consulta!r} inválida para la pregunta {pregunta.numero}: "
+                         + ", ".join(o.texto for o in pregunta.opciones))
+    return hits[0]
 
 
 @dataclass
@@ -351,7 +452,49 @@ class Escolar:
         return self.s.consultar(PAGINAS["beca"], parse_beca)
 
     def encuestas(self) -> list[str]:
-        return self.s.consultar(PAGINAS["encuestas"], parse_encuestas)
+        generales = self.s.consultar(PAGINAS["encuestas"], parse_encuestas)
+        return generales + [e.nombre for e in self.encuestas_docentes().encuestas]
+
+    def encuestas_docentes(self) -> ListaEncuestasDocentes:
+        return self.s.consultar(PAGINAS["encuestas_docentes"], parse_encuestas_docentes)
+
+    def encuesta_docente(self, consulta: str) -> EncuestaDocente:
+        from . import texto
+        lista = self.encuestas_docentes()
+        palabras = texto.normalizar(consulta).split()
+        hits = [e for e in lista.encuestas
+                if all(p in texto.normalizar(e.nombre) for p in palabras)]
+        if len(hits) != 1:
+            nombres = "; ".join(e.nombre for e in (hits or lista.encuestas))
+            motivo = "Varias encuestas coinciden" if hits else "Ninguna encuesta coincide"
+            raise SiaseError(f"{motivo} con {consulta!r}: {nombres or 'no hay encuestas docentes pendientes'}")
+        pendiente = hits[0]
+        pagina = self.s._pedir("POST", lista.accion, datos={"HTMLEncuesta": pendiente.valor,
+                                                            "HTMLTrund": "cemaenc01",
+                                                            "HTMLResill": lista.resill})
+        revisar_sesion(pagina)
+        return parse_encuesta_docente(pagina, pendiente)
+
+    def contestar_encuesta(self, encuesta: EncuestaDocente,
+                           respuestas: dict[int, OpcionEncuesta]) -> dict:
+        campos_elegidos = {}
+        for pregunta in encuesta.preguntas:
+            opcion = respuestas.get(pregunta.numero)
+            if opcion is None or opcion.valor not in {o.valor for o in pregunta.opciones}:
+                raise SiaseError(f"Falta una respuesta válida para la pregunta {pregunta.numero}")
+            campos_elegidos[pregunta.campo] = opcion.valor
+        campos = campos_formulario(encuesta.html, marcar=campos_elegidos)
+        campos = [(nombre, "cemaenc20" if nombre == "HTMLTrund" else valor) for nombre, valor in campos]
+        pagina = self.s._pedir("POST", encuesta.accion, datos=campos, peso=2)
+        revisar_sesion(pagina)
+        pendiente = any(e.valor == encuesta.valor for e in self.encuestas_docentes().encuestas)
+        return {
+            "encuesta": encuesta.nombre,
+            "contestada": not pendiente,
+            "respuestas": [{"numero": p.numero, "pregunta": p.texto,
+                            "respuesta": respuestas[p.numero].texto} for p in encuesta.preguntas],
+            "mensajes": alertas(pagina),
+        }
 
     def tramites(self) -> Tramites:
         return self.s.consultar(PAGINAS["tramites"], parse_tramites)

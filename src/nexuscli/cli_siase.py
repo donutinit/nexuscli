@@ -614,6 +614,40 @@ def cmd_encuestas(nx, args, out) -> None:
     out.emitir(enc, lambda: print("\n".join(f"· {x}" for x in enc) if enc else "No tienes encuestas pendientes."))
 
 
+def cmd_contestar_encuesta(nx, args, out) -> None:
+    from .siase_escolar import elegir_opcion
+    escolar = _escolar(nx, args)
+    encuesta = escolar.encuesta_docente(args.encuesta)
+    respuestas = {p.numero: elegir_opcion(p, args.todas) for p in encuesta.preguntas}
+    preguntas = {p.numero: p for p in encuesta.preguntas}
+    for cambio in args.respuesta:
+        numero_s, sep, valor = cambio.partition("=")
+        if not sep or not numero_s.isdigit() or int(numero_s) not in preguntas or not valor:
+            raise SiaseError("Usa --respuesta N=RESPUESTA, por ejemplo --respuesta 5=deficiente")
+        numero = int(numero_s)
+        respuestas[numero] = elegir_opcion(preguntas[numero], valor)
+
+    if not out.json:
+        print(pintar(encuesta.nombre, negrita=True))
+        print()
+        _tabla([[p.numero, respuestas[p.numero].texto, p.texto] for p in encuesta.preguntas],
+               ["N", "RESPUESTA", "PREGUNTA"])
+        print()
+    _confirmar(f"¿Grabar estas {len(respuestas)} respuestas?", args.si)
+    resultado = escolar.contestar_encuesta(encuesta, respuestas)
+
+    def txt():
+        if resultado["contestada"]:
+            print(pintar("Listo: ", "oliva", negrita=True) + "SIASE ya no muestra esta encuesta como pendiente.")
+        else:
+            print(pintar("Ojo: ", "naranja", negrita=True)
+                  + "SIASE todavía la muestra como pendiente. No vuelvas a enviarla sin revisar en la web.")
+        for mensaje in resultado["mensajes"]:
+            print(pintar(f"SIASE dice: {mensaje}", "tenue"))
+
+    out.emitir(resultado, txt)
+
+
 def cmd_tramites(nx, args, out) -> None:
     t = _escolar(nx, args).tramites()
 

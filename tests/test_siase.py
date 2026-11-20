@@ -1,5 +1,6 @@
 import stat
 import time
+from urllib.parse import parse_qs
 
 import httpx
 import pytest
@@ -237,6 +238,23 @@ def test_cli_siase(monkeypatch, falso, tmp_path, capsys):
     assert not paginas(falso, "delSavePreReg20")
 
 
+def test_cli_contestar_encuesta_enseña_resumen(monkeypatch, falso, tmp_path, capsys):
+    from nexuscli import cli
+    monkeypatch.setenv("NO_COLOR", "1")
+    falso.encuestas_docentes = [("enc1|clase1", "Historia del cine - ALMA PÉREZ")]
+
+    def cliente(pacer=None, verbose=False):
+        return Client(pacer=Pacer("off"), state=tmp_path, http=httpx.Client(transport=httpx.MockTransport(falso)),
+                      credenciales=config.Credenciales(F.MATRICULA, "x", "test"))
+
+    monkeypatch.setattr(cli, "Client", cliente)
+    cli.main(["siase", "contestar-encuesta", "historia", "--todas", "excelente",
+              "--respuesta", "5=deficiente", "-y"])
+    salida = capsys.readouterr().out
+    assert "Historia del cine" in salida and "Deficiente" in salida and "cumple con los horarios" in salida
+    assert "SIASE ya no muestra esta encuesta como pendiente" in salida
+
+
 # ---------------------------------------------------------------------- consultas escolares
 
 
@@ -253,6 +271,13 @@ def test_parsers_escolares():
     assert E.parse_adeudos(F.pagina_adeudos([])).total == 0
     assert not E.parse_beca(F.pagina_beca()).solicitud
     assert E.parse_encuestas(F.pagina_encuestas(["Encuesta de servicios"])) == ["Encuesta de servicios"]
+    pendientes = [("enc1|clase1", "Historia del cine - ALMA PÉREZ")]
+    lista = E.parse_encuestas_docentes(F.pagina_encuestas_docentes(pendientes))
+    assert [e.nombre for e in lista.encuestas] == ["Historia del cine - ALMA PÉREZ"]
+    detalle = E.parse_encuesta_docente(F.pagina_encuestas_docentes(pendientes, "enc1|clase1"), lista.encuestas[0])
+    assert len(detalle.preguntas) == 10 and detalle.preguntas[4].texto.startswith("¿Cuál es el grado")
+    assert [o.texto for o in detalle.preguntas[0].opciones] == F.OPCIONES_ENCUESTA
+    assert E.elegir_opcion(detalle.preguntas[4], "deficiente").texto == "Deficiente"
     t = E.parse_tramites(F.pagina_tramites([("777", "CERTIFICADO PARCIAL", "01/09/2026", "$350.00", "EN REVISION")]))
     assert t.tramites[0].estatus == "EN REVISION" and t.se_pueden_pedir == ["CERTIFICADO ELECTRÓNICO PARCIAL", "CERTIFICADO PARCIAL"]
     assert E.parse_tramites(F.pagina_tramites([])).tramites == []
@@ -285,6 +310,22 @@ def test_consultas_escolares_por_red(sia, falso):
     falso.parciales = False
     _, tablas, msg = e.evaluaciones()
     assert tablas == [] and msg == "No cuenta con Evaluaciones o Parciales en este periodo."
+
+
+def test_contestar_encuesta_docente_fija_el_payload(sia, falso):
+    from nexuscli.siase_escolar import Escolar, elegir_opcion
+    falso.encuestas_docentes = [("enc1|clase1", "Historia del cine - ALMA PÉREZ")]
+    e = Escolar(sia)
+    encuesta = e.encuesta_docente("historia del cine")
+    respuestas = {p.numero: elegir_opcion(p, "deficiente" if p.numero == 5 else "excelente")
+                  for p in encuesta.preguntas}
+    resultado = e.contestar_encuesta(encuesta, respuestas)
+    assert resultado["contestada"] and resultado["mensajes"] == ["Encuesta guardada."]
+    posts = [p for p in paginas(falso, "control.p") if parse_qs(p.content.decode()).get("HTMLTrund") == ["cemaenc20"]]
+    assert len(posts) == 1
+    cuerpo = {k: v[-1] for k, v in parse_qs(posts[0].content.decode()).items()}
+    assert cuerpo["HTMLEncuesta"] == "enc1|clase1" and cuerpo["HTMLQ1"] == "R11"
+    assert cuerpo["HTMLQ5"] == "R55" and cuerpo["HTMLQ10"] == "R101"
 
 
 def test_cli_estado(monkeypatch, falso, tmp_path, capsys):

@@ -2,7 +2,9 @@
 
 Cómo lee `nexuscli` las AFIs, el kardex, las calificaciones, el horario y las consultas escolares de [SIASE](https://deimos.dgi.uanl.mx/cgi-bin/wspd_cgi.sh/login.htm). SIASE es una aplicación Progress WebSpeed de hace varios años: no tiene API, así que `nexuscli` lee su HTML. No es documentación oficial y cualquier cambio de SIASE lo puede romper.
 
-Las consultas de esta página están probadas contra SIASE. El pre-registro y la liberación de AFIs copian lo que hace la página y `tests/test_siase.py` los fija contra un SIASE falso, pero todavía no se han probado contra el servidor real.
+Las consultas de esta página están probadas contra SIASE. El pre-registro de AFIs y las evaluaciones
+docentes también se probaron contra el servidor real. La liberación de AFIs copia lo que hace la página
+y `tests/test_siase.py` fija su petición contra un SIASE falso, pero todavía no se ha probado en vivo.
 
 El proyecto [GDSC-UANL/siase-api](https://github.com/GDSC-UANL/siase-api) mapeó antes varias de estas páginas y sirvió de punto de partida. `nexuscli` no usa su código: es GPL v3 y aquí todo se escribió de nuevo.
 
@@ -98,7 +100,7 @@ Son las páginas del menú que no tienen que ver con materias. Van con los mismo
 | `inscripcion` | `ecohoinsint01.htm` | `Dia de Inscripcion :` y `Hora de Inscripcion :`, con el periodo arriba |
 | `adeudos` | `ecavpag04.htm` | una tabla de cuenta, cantidad, concepto y total; la última fila es `Adeudo Total :` |
 | `beca` | `bccosobe01.htm` | un mensaje, por ejemplo "No cuenta con una solicitud de beca" |
-| `encuestas` | `eenc01.htm` | el `<select name="HTMLEncuesta">`: cada opción distinta de "Seleccione" es una encuesta pendiente |
+| `encuestas` | `eenc01.htm` y `cemaenc01.htm` | encuestas generales y evaluaciones docentes pendientes |
 | `tramites` | `eccontram03.htm` | la tabla de solicitudes (número, documento, fecha, importe, estatus) y un `<select>` con los documentos que se pueden pedir |
 | `documentos` | `DEYA+ecCargaDocto01.htm` | el estado del expediente y los documentos que falten |
 | `recibo` | `ecBolRec-v02.htm` (`v03` el intersemestral) | periodo, tipo de inscripción, conceptos con su cuenta e importe, total, fecha límite y el bloque "Transacción exitosa" con monto, fecha y estado del pago |
@@ -111,6 +113,17 @@ Son las páginas del menú que no tienen que ver con materias. Van con los mismo
 Sin evaluaciones parciales capturadas, `control.p` responde con un `alert` ("No cuenta con Evaluaciones o Parciales en este periodo."). `nexuscli` lo toma como una lista vacía y no como error.
 
 `datos` trae el NSS, la CURP y el domicilio. `nexuscli` no lo guarda y omite los campos vacíos.
+
+### evaluaciones docentes
+
+El Centro de Evaluaciones usa `cemaenc01.htm`. Su `<select name="HTMLEncuesta">` trae una opción por
+materia y profesor. Mostrar una evaluación hace `POST control.p` con `HTMLTrund=cemaenc01`; la respuesta
+trae diez grupos de radio con las opciones Excelente, Muy Buena, Buena, Regular y Deficiente.
+
+`nexuscli siase contestar-encuesta` selecciona una evaluación por materia o profesor, aplica
+`--todas` y después las excepciones `-r N=RESPUESTA`. Enseña las diez respuestas y pide confirmación.
+Al confirmar envía el formulario con `HTMLTrund=cemaenc20` y comprueba que la evaluación ya no aparezca
+en `cemaenc01.htm`. Los identificadores internos solo viven durante esa ejecución.
 
 ## pre-registro de AFIs
 

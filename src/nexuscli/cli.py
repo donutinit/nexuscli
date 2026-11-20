@@ -1211,7 +1211,14 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--intersemestral", action="store_true", help="el recibo intersemestral")
     add_s("recibos", cs.cmd_recibos, "recibos internos de servicios académicos y escolares")
     add_s("beca", cs.cmd_beca, "resultado de tu solicitud de beca")
-    add_s("encuestas", cs.cmd_encuestas, "encuestas pendientes")
+    add_s("encuestas", cs.cmd_encuestas, "encuestas pendientes, incluidas las evaluaciones docentes")
+    sp = add_s("contestar-encuesta", cs.cmd_contestar_encuesta,
+               "contesta una evaluación docente (enseña cada respuesta y pide confirmación)", si=True)
+    sp.add_argument("encuesta", help="parte única del nombre de la materia o del profesor")
+    sp.add_argument("--todas", required=True,
+                    help="respuesta para todas las preguntas: excelente, muy buena, buena, regular o deficiente")
+    sp.add_argument("-r", "--respuesta", action="append", default=[], metavar="N=RESPUESTA",
+                    help="cambia una pregunta concreta; se puede repetir")
     add_s("tramites", cs.cmd_tramites, "trámites con el Departamento Escolar y de Archivo")
     add_s("documentos", cs.cmd_documentos, "documentos pendientes de tu expediente")
     sp = add_s("evaluaciones", cs.cmd_evaluaciones, "evaluaciones parciales de un periodo")

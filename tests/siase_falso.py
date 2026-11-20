@@ -105,6 +105,20 @@ KARDEX = [
 PERIODOS = [("0x00000000003b9471", "Semestral Agosto-Diciembre 2026"),
             ("0x00000000003b9101", "Semestral Enero - Junio 2026")]
 
+PREGUNTAS_ENCUESTA = [
+    "¿Cuál es el grado en que el maestro prepara y organiza su clase?",
+    "¿Cuál es el nivel de conocimientos de su maestro, en la materia que imparte?",
+    "¿Cuál es la habilidad del maestro para explicar su clase?",
+    "¿El maestro enriquece con sus comentarios y explicaciones los temas estudiados?",
+    "¿Cuál es el grado en que el maestro cumple con los horarios de clase establecidos?",
+    "¿Cuál es el grado en que el maestro motiva la reflexión y participación?",
+    "¿Cuál es el grado en que el maestro motiva a estudiar fuera de clase?",
+    "¿Cuál es el grado en que el maestro inculca valores de trabajo y honestidad?",
+    "¿Cuál es el grado de cumplimiento del programa de la materia?",
+    "¿Cuál es el trato al alumno por parte del maestro?",
+]
+OPCIONES_ENCUESTA = ["Excelente", "Muy Buena", "Buena", "Regular", "Deficiente"]
+
 CALIFICACIONES = {
     "0x00000000003b9101": [("202", "Antropología visual", "CO", "211", "22/05/26", "87", "1"),
                            ("302", "Sonido", "CO", "212", "19/05/26", "79", "1"),
@@ -357,6 +371,28 @@ def pagina_encuestas(encuestas: list[str]) -> str:
 <select name="HTMLEncuesta"><option value="0">Seleccione</option>{ops}</select></form></body></html>"""
 
 
+def pagina_encuestas_docentes(encuestas: list[tuple[str, str]], seleccionada: str = "") -> str:
+    ops = "".join(f'<option value="{valor}" {"selected" if valor == seleccionada else ""}>{_e(nombre)}</option>'
+                  for valor, nombre in encuestas)
+    preguntas = ""
+    if seleccionada:
+        nombre = next(nombre for valor, nombre in encuestas if valor == seleccionada)
+        filas = []
+        for numero, pregunta in enumerate(PREGUNTAS_ENCUESTA, 1):
+            opciones = "".join(f'<input name="HTMLQ{numero}" type="radio" value="R{numero}{i}">{opcion}<br>'
+                               for i, opcion in enumerate(OPCIONES_ENCUESTA, 1))
+            filas.append(f"{numero}.- {_e(pregunta)}<br>{opciones}<br>")
+        preguntas = (f'<hr><div>Encuesta de Desempeño Magisterial - {_e(nombre)}</div>'
+                     '<input type="hidden" name="HTMLCve_Seccion" value="1">'
+                     + "".join(filas) + '<input type="button" name="btnGrabar" value="Grabar">')
+    resill = "59953" if seleccionada else "59923"
+    return f"""<html><body><form method="POST" action="https://deimos.dgi.uanl.mx/cgi-bin/wspd_cgi.sh/control.p?{_base_qs()}" name="mi_forma">
+<p>Seleccionar la Encuesta:</p><select name="HTMLEncuesta">{ops}</select>
+<input type="button" name="btnMostrar" value="Mostrar">{preguntas}
+<input type="hidden" name="HTMLTrund" value=""><input type="hidden" name="HTMLResill" value="{resill}">
+</form></body></html>"""
+
+
 def pagina_tramites(tramites: list[tuple[str, str, str, str, str]]) -> str:
     filas = "".join("<tr>" + "".join(f"<td>{_e(x)}</td>" for x in t) + "<td></td></tr>" for t in tramites)
     return f"""<html><body><script>function agregar() {{ alert('Debe Seleccionar el Tipo de Documento'); }}</script>
@@ -424,6 +460,7 @@ class SiaseFalso:
     registradas: set[int] = field(default_factory=set)
     adeudos: list[tuple[str, str, str, str]] = field(default_factory=list)
     encuestas: list[str] = field(default_factory=list)
+    encuestas_docentes: list[tuple[str, str]] = field(default_factory=list)
     tramites: list[tuple[str, str, str, str, str]] = field(default_factory=list)
     parciales: bool = True
 
@@ -470,11 +507,21 @@ class SiaseFalso:
             return self._r(pagina_periodos("econcfs02"))
         if pagina == "echalm01.htm":
             return self._r(pagina_periodos("echalm02"))
+        if pagina == "cemaenc01.htm":
+            return self._r(pagina_encuestas_docentes(self.encuestas_docentes))
         if pagina == "control.p":
             if form.get("HTMLTrund") == "econcfs02":
                 return self._r(pagina_calificaciones(form["HTMLPeriodo"]))
             if form.get("HTMLTrund") == "echalm02":
                 return self._r(pagina_horario())
+            if form.get("HTMLTrund") == "cemaenc01":
+                return self._r(pagina_encuestas_docentes(self.encuestas_docentes, form["HTMLEncuesta"]))
+            if form.get("HTMLTrund") == "cemaenc20":
+                valor = form["HTMLEncuesta"]
+                if not all(form.get(f"HTMLQ{i}") for i in range(1, len(PREGUNTAS_ENCUESTA) + 1)):
+                    return self._r(pagina_error("Faltan respuestas."))
+                self.encuestas_docentes = [e for e in self.encuestas_docentes if e[0] != valor]
+                return self._r(pagina_error("Encuesta guardada."))
         escolares = {
             "ecSitEst01.htm": pagina_situacion,
             "ecohoinsint01.htm": pagina_fecha_inscripcion,

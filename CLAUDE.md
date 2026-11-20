@@ -15,8 +15,8 @@ existe `CLAUDE.local.md` (fuera de git), léelo también: trae notas de la máqu
   cuando la persona ya aprobó ese resumen concreto.
 - Lo mismo con SIASE: `nexuscli siase inscribir` y `liberar` solo si la persona lo pidió, para
   esa AFI concreta.
-- Nunca respondas por la persona las preguntas que SIASE pone antes de su menú (incorporación al
-  IMSS, encuestas, datos personales). Las consultas funcionan igual; esas se contestan en la web.
+- Nunca respondas por la persona las preguntas de datos personales que SIASE pone antes de su menú,
+  como la incorporación al IMSS. Las consultas funcionan igual; esas se contestan en la web.
 - `nexuscli api` es para métodos `Consultar*`. `--escribir` solo si la persona lo pidió.
 - No uses `--pace off` contra el servidor real; es para tests.
 - Para leer resultados usa `--json`.
@@ -25,7 +25,9 @@ existe `CLAUDE.local.md` (fuera de git), léelo también: trae notas de la máqu
   dato de ahí, pide la sección concreta con `-s` y no lo copies a archivos, commits, issues ni
   mensajes. Lo mismo con recibos, adeudos y calificaciones: se leen para contestarle a la persona,
   no se guardan en otro lado.
-- Las encuestas y los trámites de SIASE solo se leen; contestarlos o pedirlos se hace en la web.
+- Las encuestas se leen libremente. `siase contestar-encuesta` solo se usa para una evaluación docente
+  que la persona pidió contestar con respuestas concretas; siempre se revisa el resumen antes de
+  confirmar. Las demás encuestas y los trámites solo se leen y se contestan o piden en la web.
 
 ## uso
 
@@ -50,6 +52,7 @@ nexuscli siase historial | kardex [-p] | periodos | calificaciones [-p PERIODO] 
 nexuscli siase estado                   # tablero: situación, inscripción, recibo, adeudos, beca, documentos...
 nexuscli siase situacion | inscripcion | recibo [--intersemestral] | recibos | adeudos | beca
 nexuscli siase documentos | tramites | encuestas | evaluaciones [-p PERIODO] | datos [-s SECCION]
+nexuscli siase contestar-encuesta ENCUESTA --todas RESPUESTA [-r N=RESPUESTA]
 ```
 
 Las tareas se nombran por su número (`2.4`, `PIA`), su id o un pedazo del nombre; las materias,

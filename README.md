@@ -33,6 +33,7 @@
 - Lista las AFIs de cada mes con su cupo, te pre-registra o libera tu lugar y lleva la cuenta de cuántas oficiales llevas.
 - Lee tu kardex, tus calificaciones finales y parciales de cada periodo y tu horario.
 - Junta en un tablero tu situación escolar, el día de inscripción, el recibo, adeudos, beca, documentos, trámites y encuestas.
+- Contesta evaluaciones docentes con un resumen exacto y confirmación antes de grabarlas.
 
 ## instalación
 
@@ -226,6 +227,8 @@ nexuscli siase beca
 nexuscli siase documentos                 # si a tu expediente le falta algo
 nexuscli siase tramites                   # trámites con el Departamento Escolar y de Archivo
 nexuscli siase encuestas
+nexuscli siase contestar-encuesta "historia del cine" --todas excelente
+nexuscli siase contestar-encuesta "dirección actoral" --todas excelente -r 5=deficiente
 nexuscli siase evaluaciones -p "ago dic 2026"
 nexuscli siase datos -s domicilio
 ```
@@ -234,7 +237,7 @@ nexuscli siase datos -s domicilio
   <img src="docs/img/siase-estado.png" width="94%" alt="nexuscli siase estado: semestre, situación, día de inscripción, recibo pagado, adeudos, beca, documentos, trámites, una encuesta pendiente y AFIs oficiales">
 </p>
 
-`estado` lee nueve páginas del menú de SIASE y las junta en una vista. Lo que ya está en orden sale en verde, lo que te toca hacer en naranja y los adeudos en rojo. Si una página falla, esa fila lo dice y las demás salen igual.
+`estado` lee diez páginas del menú de SIASE y las junta en una vista. Lo que ya está en orden sale en verde, lo que te toca hacer en naranja y los adeudos en rojo. Si una página falla, esa fila lo dice y las demás salen igual.
 
 <p align="center">
   <img src="docs/img/siase-recibo.png" width="80%" alt="nexuscli siase recibo: conceptos del recibo del semestre con su importe, el total y la fecha de pago">
@@ -242,7 +245,10 @@ nexuscli siase datos -s domicilio
 
 `datos` enseña lo que SIASE tiene de ti: NSS, CURP, domicilio y demás, sin los campos vacíos. `-s` deja solo una sección. Es información sensible: no la pegues en un issue ni en un chat.
 
-`encuestas`, `tramites`, `beca` y `documentos` solo leen. Contestar una encuesta o pedir un trámite se hace en la web.
+`encuestas` incluye las evaluaciones docentes del Centro de Evaluaciones. `contestar-encuesta`
+pone una respuesta base en las diez preguntas y `-r N=RESPUESTA` cambia preguntas concretas. Antes
+de grabar enseña cada respuesta y pide confirmación; `-y` solo se usa después de aprobar ese resumen.
+Las demás encuestas y los trámites se contestan o piden en la web. `beca` y `documentos` solo leen.
 
 `nexuscli novedades --siase` suma las calificaciones finales nuevas, las parciales, la asistencia registrada en tus AFIs, las AFIs nuevas con cupo, los adeudos, las encuestas nuevas y los cambios de estatus de tus trámites.
 
