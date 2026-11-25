@@ -121,7 +121,8 @@ materia y profesor. Mostrar una evaluación hace `POST control.p` con `HTMLTrund
 trae diez grupos de radio con las opciones Excelente, Muy Buena, Buena, Regular y Deficiente.
 
 `nexuscli siase contestar-encuesta` selecciona una evaluación por materia o profesor, aplica
-`--todas` y después las excepciones `-r N=RESPUESTA`. Enseña las diez respuestas y pide confirmación.
+`--interactivo` para preguntar una respuesta a la vez, o `--todas` y después las excepciones
+`-r N=RESPUESTA`. Enseña las diez respuestas y pide confirmación.
 Al confirmar envía el formulario con `HTMLTrund=cemaenc20` y comprueba que la evaluación ya no aparezca
 en `cemaenc01.htm`. Los identificadores internos solo viven durante esa ejecución.
 

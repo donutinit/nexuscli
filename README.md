@@ -227,6 +227,7 @@ nexuscli siase beca
 nexuscli siase documentos                 # si a tu expediente le falta algo
 nexuscli siase tramites                   # trámites con el Departamento Escolar y de Archivo
 nexuscli siase encuestas
+nexuscli siase contestar-encuesta "historia del cine" --interactivo
 nexuscli siase contestar-encuesta "historia del cine" --todas excelente
 nexuscli siase contestar-encuesta "dirección actoral" --todas excelente -r 5=deficiente
 nexuscli siase evaluaciones -p "ago dic 2026"
@@ -246,8 +247,9 @@ nexuscli siase datos -s domicilio
 `datos` enseña lo que SIASE tiene de ti: NSS, CURP, domicilio y demás, sin los campos vacíos. `-s` deja solo una sección. Es información sensible: no la pegues en un issue ni en un chat.
 
 `encuestas` incluye las evaluaciones docentes del Centro de Evaluaciones. `contestar-encuesta`
-pone una respuesta base en las diez preguntas y `-r N=RESPUESTA` cambia preguntas concretas. Antes
-de grabar enseña cada respuesta y pide confirmación; `-y` solo se usa después de aprobar ese resumen.
+con `--interactivo` pregunta las diez respuestas una por una. Como atajo, `--todas` pone una respuesta
+base y `-r N=RESPUESTA` cambia preguntas concretas. Antes de grabar enseña cada respuesta y pide
+confirmación; `-y` solo se usa después de aprobar ese resumen.
 Las demás encuestas y los trámites se contestan o piden en la web. `beca` y `documentos` solo leen.
 
 `nexuscli novedades --siase` suma las calificaciones finales nuevas, las parciales, la asistencia registrada en tus AFIs, las AFIs nuevas con cupo, los adeudos, las encuestas nuevas y los cambios de estatus de tus trámites.

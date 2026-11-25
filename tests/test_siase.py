@@ -1,4 +1,6 @@
+import io
 import stat
+import sys
 import time
 from urllib.parse import parse_qs
 
@@ -253,6 +255,31 @@ def test_cli_contestar_encuesta_enseña_resumen(monkeypatch, falso, tmp_path, ca
     salida = capsys.readouterr().out
     assert "Historia del cine" in salida and "Deficiente" in salida and "cumple con los horarios" in salida
     assert "SIASE ya no muestra esta encuesta como pendiente" in salida
+
+
+def test_cli_contestar_encuesta_interactiva(monkeypatch, falso, tmp_path, capsys):
+    from nexuscli import cli
+    monkeypatch.setenv("NO_COLOR", "1")
+    falso.encuestas_docentes = [("enc1|clase1", "Historia del cine - ALMA PÉREZ")]
+
+    class Terminal(io.StringIO):
+        def isatty(self):
+            return True
+
+    def cliente(pacer=None, verbose=False):
+        return Client(pacer=Pacer("off"), state=tmp_path, http=httpx.Client(transport=httpx.MockTransport(falso)),
+                      credenciales=config.Credenciales(F.MATRICULA, "x", "test"))
+
+    monkeypatch.setattr(cli, "Client", cliente)
+    monkeypatch.setattr(sys, "stdin", Terminal("1\n2\n3\n4\n5\n1\n2\n3\n4\n5\ns\n"))
+    cli.main(["siase", "contestar-encuesta", "historia", "--interactivo"])
+    salida = capsys.readouterr().out
+    assert "1. ¿Cuál es el grado" in salida and "Respuesta [1-5]" in salida and "Resumen" in salida
+    assert "SIASE ya no muestra esta encuesta como pendiente" in salida
+    post = next(p for p in paginas(falso, "control.p")
+                if parse_qs(p.content.decode()).get("HTMLTrund") == ["cemaenc20"])
+    cuerpo = {k: v[-1] for k, v in parse_qs(post.content.decode()).items()}
+    assert cuerpo["HTMLQ1"] == "R11" and cuerpo["HTMLQ2"] == "R22" and cuerpo["HTMLQ5"] == "R55"
 
 
 # ---------------------------------------------------------------------- consultas escolares

@@ -1215,8 +1215,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add_s("contestar-encuesta", cs.cmd_contestar_encuesta,
                "contesta una evaluación docente (enseña cada respuesta y pide confirmación)", si=True)
     sp.add_argument("encuesta", help="parte única del nombre de la materia o del profesor")
-    sp.add_argument("--todas", required=True,
-                    help="respuesta para todas las preguntas: excelente, muy buena, buena, regular o deficiente")
+    modo = sp.add_mutually_exclusive_group(required=True)
+    modo.add_argument("--todas",
+                      help="respuesta para todas las preguntas: excelente, muy buena, buena, regular o deficiente")
+    modo.add_argument("-i", "--interactivo", action="store_true",
+                      help="pregunta una respuesta a la vez")
     sp.add_argument("-r", "--respuesta", action="append", default=[], metavar="N=RESPUESTA",
                     help="cambia una pregunta concreta; se puede repetir")
     add_s("tramites", cs.cmd_tramites, "trámites con el Departamento Escolar y de Archivo")

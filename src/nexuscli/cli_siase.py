@@ -616,20 +616,48 @@ def cmd_encuestas(nx, args, out) -> None:
 
 def cmd_contestar_encuesta(nx, args, out) -> None:
     from .siase_escolar import elegir_opcion
+    if args.interactivo:
+        import sys
+        if out.json:
+            raise SiaseError("--interactivo no se puede usar con --json")
+        if args.respuesta:
+            raise SiaseError("--respuesta solo se usa junto con --todas")
+        if not sys.stdin.isatty():
+            raise SystemExit("--interactivo necesita una terminal.")
     escolar = _escolar(nx, args)
     encuesta = escolar.encuesta_docente(args.encuesta)
-    respuestas = {p.numero: elegir_opcion(p, args.todas) for p in encuesta.preguntas}
-    preguntas = {p.numero: p for p in encuesta.preguntas}
-    for cambio in args.respuesta:
-        numero_s, sep, valor = cambio.partition("=")
-        if not sep or not numero_s.isdigit() or int(numero_s) not in preguntas or not valor:
-            raise SiaseError("Usa --respuesta N=RESPUESTA, por ejemplo --respuesta 5=deficiente")
-        numero = int(numero_s)
-        respuestas[numero] = elegir_opcion(preguntas[numero], valor)
 
     if not out.json:
         print(pintar(encuesta.nombre, negrita=True))
         print()
+    if args.interactivo:
+        respuestas = {}
+        for pregunta in encuesta.preguntas:
+            print(f"{pregunta.numero}. {pregunta.texto}")
+            for numero, opcion in enumerate(pregunta.opciones, 1):
+                print(f"  {numero}. {opcion.texto}")
+            while True:
+                try:
+                    valor = input(f"Respuesta [1-{len(pregunta.opciones)}]: ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    raise SystemExit("Cancelado.") from None
+                if valor.isdigit() and 1 <= int(valor) <= len(pregunta.opciones):
+                    respuestas[pregunta.numero] = pregunta.opciones[int(valor) - 1]
+                    break
+                print(f"Elige un número del 1 al {len(pregunta.opciones)}.")
+            print()
+    else:
+        respuestas = {p.numero: elegir_opcion(p, args.todas) for p in encuesta.preguntas}
+        preguntas = {p.numero: p for p in encuesta.preguntas}
+        for cambio in args.respuesta:
+            numero_s, sep, valor = cambio.partition("=")
+            if not sep or not numero_s.isdigit() or int(numero_s) not in preguntas or not valor:
+                raise SiaseError("Usa --respuesta N=RESPUESTA, por ejemplo --respuesta 5=deficiente")
+            numero = int(numero_s)
+            respuestas[numero] = elegir_opcion(preguntas[numero], valor)
+
+    if not out.json:
+        print(pintar("Resumen", negrita=True))
         _tabla([[p.numero, respuestas[p.numero].texto, p.texto] for p in encuesta.preguntas],
                ["N", "RESPUESTA", "PREGUNTA"])
         print()

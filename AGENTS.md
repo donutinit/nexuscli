@@ -52,6 +52,7 @@ nexuscli siase historial | kardex [-p] | periodos | calificaciones [-p PERIODO] 
 nexuscli siase estado                   # tablero: situación, inscripción, recibo, adeudos, beca, documentos...
 nexuscli siase situacion | inscripcion | recibo [--intersemestral] | recibos | adeudos | beca
 nexuscli siase documentos | tramites | encuestas | evaluaciones [-p PERIODO] | datos [-s SECCION]
+nexuscli siase contestar-encuesta ENCUESTA --interactivo
 nexuscli siase contestar-encuesta ENCUESTA --todas RESPUESTA [-r N=RESPUESTA]
 ```
 
